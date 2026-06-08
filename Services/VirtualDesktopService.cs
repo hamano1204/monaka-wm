@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using monaka_wm;
 
 namespace monaka_wm.Services
@@ -11,7 +12,7 @@ namespace monaka_wm.Services
         public Dictionary<string, SplitDirection> MonitorSplitDirections { get; } = new();
     }
 
-    public class VirtualDesktopService
+    public class VirtualDesktopService : IDisposable
     {
         private readonly IVirtualDesktopManager? _virtualDesktopManager;
         private readonly Dictionary<Guid, DesktopLayoutState> _desktopStates = new();
@@ -125,6 +126,24 @@ namespace monaka_wm.Services
         public void RaiseDesktopChanged()
         {
             DesktopChanged?.Invoke(this, EventArgs.Empty);
+        }
+
+        public void Dispose()
+        {
+            if (_virtualDesktopManager != null)
+            {
+                try
+                {
+                    if (Marshal.IsComObject(_virtualDesktopManager))
+                    {
+                        Marshal.ReleaseComObject(_virtualDesktopManager);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error releasing VirtualDesktopManager COM: {ex.Message}");
+                }
+            }
         }
     }
 }

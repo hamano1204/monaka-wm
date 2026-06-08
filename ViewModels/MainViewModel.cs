@@ -100,12 +100,19 @@ namespace monaka_wm.ViewModels
             );
 
             // Listen to WindowManager property changes
-            DependencyPropertyDescriptor.FromProperty(WindowManager.IsTileModeProperty, typeof(WindowManager))
-                .AddValueChanged(WindowManager.Instance, (s, e) =>
+            WindowManager.Instance.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName == nameof(WindowManager.IsTileMode))
                 {
                     OnPropertyChanged(nameof(IsTileMode));
                     RefreshAllViews();
-                });
+                }
+                else if (e.PropertyName == nameof(WindowManager.ColumnsCount))
+                {
+                    OnPropertyChanged(nameof(ColumnsCount));
+                    RefreshAllViews();
+                }
+            };
 
             WindowManager.Instance.SplitDirectionChanged += (monitorName, dir) =>
             {

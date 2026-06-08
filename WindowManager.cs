@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Windows;
 using System.Windows.Interop;
@@ -17,7 +19,7 @@ namespace monaka_wm
         Vertical
     }
 
-    public class WindowManager : DependencyObject
+    public class WindowManager : INotifyPropertyChanged
     {
         private static WindowManager? _instance;
         public static WindowManager Instance => _instance ??= new WindowManager();
@@ -154,23 +156,40 @@ namespace monaka_wm
             }
         }
 
-        // Dependency Properties for UI Binding
-        public static readonly DependencyProperty IsTileModeProperty =
-            DependencyProperty.Register(nameof(IsTileMode), typeof(bool), typeof(WindowManager), new PropertyMetadata(true, OnModeChanged));
+        public event PropertyChangedEventHandler? PropertyChanged;
 
-        public bool IsTileMode
+        protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         {
-            get => (bool)GetValue(IsTileModeProperty);
-            set => SetValue(IsTileModeProperty, value);
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
 
-        public static readonly DependencyProperty ColumnsCountProperty =
-            DependencyProperty.Register(nameof(ColumnsCount), typeof(int), typeof(WindowManager), new PropertyMetadata(1));
+        private bool _isTileMode = true;
+        public bool IsTileMode
+        {
+            get => _isTileMode;
+            set
+            {
+                if (_isTileMode != value)
+                {
+                    _isTileMode = value;
+                    OnPropertyChanged();
+                    OnModeChanged(value);
+                }
+            }
+        }
 
+        private int _columnsCount = 1;
         public int ColumnsCount
         {
-            get => (int)GetValue(ColumnsCountProperty);
-            set => SetValue(ColumnsCountProperty, value);
+            get => _columnsCount;
+            set
+            {
+                if (_columnsCount != value)
+                {
+                    _columnsCount = value;
+                    OnPropertyChanged();
+                }
+            }
         }
 
         private WindowManager()
@@ -197,8 +216,6 @@ namespace monaka_wm
             ScanExistingWindows();
             DeferApplyLayout();
             _hookService.Start();
-
-            RegisterGlobalHotkeys();
         }
 
         public void RegisterTaskbarHwnd(IntPtr hWnd)
@@ -209,7 +226,7 @@ namespace monaka_wm
         public void Shutdown()
         {
             _hookService.Stop();
-            UnregisterGlobalHotkeys();
+            _desktopService.Dispose();
 
             // In Tile mode, restore all windows to normal before exiting
             _layoutEngine.RestoreAllWindows(Windows);
@@ -414,7 +431,7 @@ namespace monaka_wm
 
             try
             {
-                Dispatcher.BeginInvoke(() =>
+                Application.Current?.Dispatcher?.BeginInvoke(() =>
                 {
                     if (eventType == NativeMethods.EVENT_SYSTEM_FOREGROUND)
                     {
@@ -463,7 +480,7 @@ namespace monaka_wm
 
                 _pendingForegroundEvents++;
                 IntPtr capturedHWnd = rootHWnd;
-                Dispatcher.BeginInvoke(() =>
+                Application.Current?.Dispatcher?.BeginInvoke(() =>
                 {
                     try
                     {
@@ -719,7 +736,7 @@ namespace monaka_wm
         {
             if (_isLayoutPending) return;
             _isLayoutPending = true;
-            Dispatcher.BeginInvoke(new Action(() =>
+            Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
             {
                 _isLayoutPending = false;
                 UpdateActiveWindows();
@@ -735,27 +752,18 @@ namespace monaka_wm
             foreach (var screen in System.Windows.Forms.Screen.AllScreens)
             {
                 var monitorWindows = activeWindows.Where(w => w.MonitorName == screen.DeviceName).ToList();
-                bool shifted;
-                do
+                if (monitorWindows.Count == 0) continue;
+
+                var uniqueSortedColumns = monitorWindows
+                    .Select(w => w.ColumnIndex)
+                    .Distinct()
+                    .OrderBy(c => c)
+                    .ToList();
+
+                foreach (var w in monitorWindows)
                 {
-                    shifted = false;
-                    for (int i = 0; i < 2; i++)
-                    {
-                        bool currentHasWindows = monitorWindows.Any(w => w.ColumnIndex == i);
-                        bool rightHasWindows = monitorWindows.Any(w => w.ColumnIndex > i);
-                        if (!currentHasWindows && rightHasWindows)
-                        {
-                            foreach (var w in monitorWindows)
-                            {
-                                if (w.ColumnIndex > i)
-                                {
-                                    w.ColumnIndex--;
-                                }
-                            }
-                            shifted = true;
-                        }
-                    }
-                } while (shifted);
+                    w.ColumnIndex = uniqueSortedColumns.IndexOf(w.ColumnIndex);
+                }
             }
 
             // ColumnsCount is updated dynamically per MainWindow in MainWindow.xaml.cs,
@@ -847,7 +855,6 @@ namespace monaka_wm
             }
 
             _layoutEngine.ApplyLayout(
-                IsTileMode,
                 Windows,
                 _activeWindowsMap,
                 IsWindowOnCurrentDesktop,
@@ -855,15 +862,13 @@ namespace monaka_wm
             );
         }
 
-        private static void OnModeChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        private void OnModeChanged(bool isTile)
         {
-            var manager = (WindowManager)d;
-            bool isTile = (bool)e.NewValue;
             if (!isTile)
             {
-                manager.EndSplit();
+                EndSplit();
             }
-            manager.DeferApplyLayout();
+            DeferApplyLayout();
         }
 
         public void MoveWindowToMonitor(WindowItem item, string targetMonitorName)
@@ -922,53 +927,5 @@ namespace monaka_wm
             MoveWindowToMonitor(item, targetScreen.DeviceName);
         }
 
-        private void RegisterGlobalHotkeys()
-        {
-            try
-            {
-                // Register Win + Shift + Left (ID: 1001)
-                NativeMethods.RegisterHotKey(IntPtr.Zero, 1001, NativeMethods.MOD_WIN | NativeMethods.MOD_SHIFT, NativeMethods.VK_LEFT);
-                // Register Win + Shift + Right (ID: 1002)
-                NativeMethods.RegisterHotKey(IntPtr.Zero, 1002, NativeMethods.MOD_WIN | NativeMethods.MOD_SHIFT, NativeMethods.VK_RIGHT);
-
-                System.Windows.Interop.ComponentDispatcher.ThreadFilterMessage += ComponentDispatcher_ThreadFilterMessage;
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to register global hotkeys: {ex.Message}");
-            }
-        }
-
-        private void UnregisterGlobalHotkeys()
-        {
-            try
-            {
-                System.Windows.Interop.ComponentDispatcher.ThreadFilterMessage -= ComponentDispatcher_ThreadFilterMessage;
-                NativeMethods.UnregisterHotKey(IntPtr.Zero, 1001);
-                NativeMethods.UnregisterHotKey(IntPtr.Zero, 1002);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Failed to unregister global hotkeys: {ex.Message}");
-            }
-        }
-
-        private void ComponentDispatcher_ThreadFilterMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
-        {
-            if (msg.message == NativeMethods.WM_HOTKEY)
-            {
-                int id = msg.wParam.ToInt32();
-                if (id == 1001) // Left
-                {
-                    MoveActiveWindowToAdjacentMonitor(false);
-                    handled = true;
-                }
-                else if (id == 1002) // Right
-                {
-                    MoveActiveWindowToAdjacentMonitor(true);
-                    handled = true;
-                }
-            }
-        }
     }
 }

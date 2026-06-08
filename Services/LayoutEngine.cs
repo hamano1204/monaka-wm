@@ -31,18 +31,11 @@ namespace monaka_wm.Services
         }
 
         public void ApplyLayout(
-            bool isTileMode, 
             IEnumerable<WindowItem> windows, 
             Dictionary<string, WindowItem?> activeWindowsMap, 
             Func<IntPtr, bool> isWindowOnCurrentDesktop,
             Func<string, SplitDirection> getSplitDirection)
         {
-            if (!isTileMode)
-            {
-                RestoreOriginalWindowPositions(windows);
-                return;
-            }
-
             if (_isApplyingLayout) return;
             _isApplyingLayout = true;
 
@@ -120,45 +113,41 @@ namespace monaka_wm.Services
                     else
                     {
                         var splitDir = getSplitDirection(screen.DeviceName);
-                        if (splitDir == SplitDirection.Vertical)
+                        bool isVertical = splitDir == SplitDirection.Vertical;
+
+                        int splitTotalSize = isVertical ? layoutHeight : layoutWidth;
+                        int nonSplitTotalSize = isVertical ? layoutWidth : layoutHeight;
+                        int splitStart = isVertical ? layoutTop : layoutLeft;
+                        int nonSplitStart = isVertical ? layoutLeft : layoutTop;
+
+                        int stepSize = splitTotalSize / activeColsCount;
+
+                        for (int i = 0; i < activeColsCount; i++)
                         {
-                            // Multiple Rows Layout - evenly split based on activeColsCount
-                            int rowHeight = layoutHeight / activeColsCount;
+                            var active = activeInCols[i];
+                            int slotPos = splitStart + (i * stepSize);
+                            int slotSize = (i == activeColsCount - 1) ? (splitTotalSize - (i * stepSize)) : stepSize;
 
-                            for (int i = 0; i < activeColsCount; i++)
+                            EnsureWindowRestored(active.Handle);
+
+                            int x, y, w, h;
+                            if (isVertical)
                             {
-                                var active = activeInCols[i];
-                                int rowTop = layoutTop + (i * rowHeight);
-                                int rowH = (i == activeColsCount - 1) ? (layoutHeight - (i * rowHeight)) : rowHeight;
-
-                                EnsureWindowRestored(active.Handle);
-
-                                int adjustedLeft = layoutLeft - BorderAdjustmentOffset;
-                                int adjustedWidth = layoutWidth + (BorderAdjustmentOffset * 2);
-                                int adjustedHeight = rowH + BorderAdjustmentOffset;
-
-                                NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, adjustedLeft, rowTop, adjustedWidth, adjustedHeight, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
+                                x = nonSplitStart - BorderAdjustmentOffset;
+                                y = slotPos;
+                                w = nonSplitTotalSize + (BorderAdjustmentOffset * 2);
+                                h = slotSize + BorderAdjustmentOffset;
                             }
-                        }
-                        else
-                        {
-                            // Multiple Columns Layout - evenly split based on activeColsCount
-                            int colWidth = layoutWidth / activeColsCount;
-
-                            for (int i = 0; i < activeColsCount; i++)
+                            else
                             {
-                                var active = activeInCols[i];
-                                int colLeft = layoutLeft + (i * colWidth);
-                                int colW = (i == activeColsCount - 1) ? (layoutWidth - (i * colWidth)) : colWidth;
-
-                                EnsureWindowRestored(active.Handle);
-
-                                int adjustedLeft = colLeft - BorderAdjustmentOffset;
-                                int adjustedWidth = colW + (BorderAdjustmentOffset * 2);
-                                int adjustedHeight = layoutHeight + BorderAdjustmentOffset;
-
-                                NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, adjustedLeft, layoutTop, adjustedWidth, adjustedHeight, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
+                                x = slotPos - BorderAdjustmentOffset;
+                                y = nonSplitStart;
+                                w = slotSize + (BorderAdjustmentOffset * 2);
+                                h = nonSplitTotalSize + BorderAdjustmentOffset;
                             }
+
+                            NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, x, y, w, h, 
+                                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
                         }
 
                         // Hide other windows on this monitor

@@ -265,8 +265,11 @@
                                 
                                 <!-- Arrow Controls -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                    <Button Style="{StaticResource LeftArrowButtonStyle}" Click="ArrowButton_Click"/>
-                                    <Button Click="ArrowButton_Click">
+                                    <Button Style="{StaticResource LeftArrowButtonStyle}" 
+                                            Command="{Binding DataContext.MoveLeftCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                            CommandParameter="{Binding}"/>
+                                    <Button Command="{Binding DataContext.MoveRightCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                            CommandParameter="{Binding}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource RightArrowButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="False"/>
@@ -310,7 +313,8 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                    <Button Click="ArrowButton_Click">
+                                    <Button Command="{Binding DataContext.MoveLeftCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                            CommandParameter="{Binding}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource LeftArrowButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="False"/>
@@ -326,7 +330,8 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Click="ArrowButton_Click">
+                                    <Button Command="{Binding DataContext.MoveRightCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                            CommandParameter="{Binding}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource RightArrowButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="False"/>
@@ -370,7 +375,8 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                    <Button Click="ArrowButton_Click">
+                                    <Button Command="{Binding DataContext.MoveLeftCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                            CommandParameter="{Binding}">
                                         <Button.Style>
                                             <Style TargetType="Button" BasedOn="{StaticResource LeftArrowButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="False"/>
@@ -386,7 +392,10 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Style="{StaticResource RightArrowButtonStyle}" Click="ArrowButton_Click" IsEnabled="False"/>
+                                    <Button Style="{StaticResource RightArrowButtonStyle}" 
+                                            Command="{Binding DataContext.MoveRightCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
+                                            CommandParameter="{Binding}"
+                                            IsEnabled="False"/>
                                 </StackPanel>
                             </StackPanel>
                         </DataTemplate>

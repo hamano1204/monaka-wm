@@ -15,12 +15,14 @@ namespace monaka_wm
 {
     public partial class MainWindow : Window
     {
+        private const double CollapsedHeight = 4.0;
         private MainViewModel? _viewModel;
         private bool _isUpdatingLayout = false;
         private System.Windows.Forms.NotifyIcon? _notifyIcon;
         private bool _isSyncingSelection = false;
         private readonly System.Windows.Forms.Screen _targetScreen;
         private System.Windows.Threading.DispatcherTimer? _hoverTimer;
+        private Services.HotkeyService? _hotkeyService;
 
         public MainWindow() : this(System.Windows.Forms.Screen.PrimaryScreen!)
         {
@@ -35,8 +37,7 @@ namespace monaka_wm
             var hwnd = new WindowInteropHelper(this).EnsureHandle();
             WindowManager.Instance.RegisterTaskbarHwnd(hwnd);
 
-            DependencyPropertyDescriptor.FromProperty(WindowManager.IsTileModeProperty, typeof(WindowManager))
-                .AddValueChanged(WindowManager.Instance, OnTileModeChanged);
+            WindowManager.Instance.PropertyChanged += OnWindowManagerPropertyChanged;
         }
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
@@ -54,7 +55,7 @@ namespace monaka_wm
             this.Left = _targetScreen.Bounds.Left / dpiScaleX;
             this.Top = _targetScreen.Bounds.Top / dpiScaleY;
             this.Width = _targetScreen.Bounds.Width / dpiScaleX;
-            this.Height = 4; // Start collapsed
+            this.Height = CollapsedHeight; // Start collapsed
 
             // Apply WS_EX_NOACTIVATE so clicking tabs doesn't steal window focus
             var hwnd = new WindowInteropHelper(this).Handle;
@@ -105,6 +106,14 @@ namespace monaka_wm
                 contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
                 contextMenu.Items.Add("monaka-wm の終了", null, (s, ev) => this.Close());
                 _notifyIcon.ContextMenuStrip = contextMenu;
+
+                // Initialize HotkeyService on primary screen
+                _hotkeyService = new Services.HotkeyService();
+                _hotkeyService.HotkeyTriggered += goRight =>
+                {
+                    WindowManager.Instance.MoveActiveWindowToAdjacentMonitor(goRight);
+                };
+                _hotkeyService.Start();
             }
 
             // Initial selection sync
@@ -119,13 +128,16 @@ namespace monaka_wm
                 _hoverTimer = null;
             }
 
-            // Remove DependencyPropertyDescriptor listeners
-            try
+            // Remove WindowManager property listener
+            WindowManager.Instance.PropertyChanged -= OnWindowManagerPropertyChanged;
+
+            // Stop HotkeyService
+            if (_hotkeyService != null)
             {
-                DependencyPropertyDescriptor.FromProperty(WindowManager.IsTileModeProperty, typeof(WindowManager))
-                    .RemoveValueChanged(WindowManager.Instance, OnTileModeChanged);
+                _hotkeyService.Stop();
+                _hotkeyService.Dispose();
+                _hotkeyService = null;
             }
-            catch { }
 
             // Unsubscribe DesktopChanged
             WindowManager.Instance.DesktopChanged -= OnDesktopChanged;
@@ -186,7 +198,7 @@ namespace monaka_wm
 
         private void CollapseWindow()
         {
-            this.Height = 4;
+            this.Height = CollapsedHeight;
             MainContentGrid.Visibility = Visibility.Collapsed;
         }
 
@@ -291,9 +303,12 @@ namespace monaka_wm
             }
         }
 
-        private void OnTileModeChanged(object? sender, EventArgs e)
+        private void OnWindowManagerPropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            SyncLayoutDefinitions();
+            if (e.PropertyName == nameof(WindowManager.IsTileMode))
+            {
+                SyncLayoutDefinitions();
+            }
         }
 
         private void SyncLayoutDefinitions()
@@ -388,22 +403,7 @@ namespace monaka_wm
             return null;
         }
 
-        private void ArrowButton_Click(object sender, RoutedEventArgs e)
-        {
-            if (sender is Button btn && btn.DataContext is WindowItem windowItem)
-            {
-                var direction = btn.Content.ToString();
-                if (direction == "◀" || direction == "▲")
-                {
-                    WindowManager.Instance.MoveWindowToColumn(windowItem, windowItem.ColumnIndex - 1);
-                }
-                else
-                {
-                    WindowManager.Instance.MoveWindowToColumn(windowItem, windowItem.ColumnIndex + 1);
-                }
-            }
-            e.Handled = true;
-        }
+
 
         private void TabContextMenu_Opened(object sender, RoutedEventArgs e)
         {
