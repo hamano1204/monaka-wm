@@ -20,7 +20,7 @@ namespace monaka_wm
         private readonly VirtualDesktopService _desktopService;
         private readonly LayoutEngine _layoutEngine;
 
-        private IntPtr _taskbarHwnd = IntPtr.Zero;
+        private readonly HashSet<IntPtr> _taskbarHwnds = new();
         public const int TASKBAR_HEIGHT = 45; // Taskbar height in WPF units
 
         public ObservableCollection<WindowItem> Windows { get; } = new();
@@ -28,7 +28,7 @@ namespace monaka_wm
         private IntPtr _lastProcessedForegroundHwnd = IntPtr.Zero;
         private bool _isLayoutPending = false;
 
-        private readonly List<WindowItem?> _activeWindows = new() { null, null, null };
+        private readonly Dictionary<string, WindowItem?> _activeWindowsMap = new();
 
         public bool IsInitialized { get; private set; }
 
@@ -52,25 +52,22 @@ namespace monaka_wm
                 // 1. Save current desktop state
                 if (_desktopService.CurrentDesktopId != Guid.Empty)
                 {
-                    _desktopService.SaveState(_desktopService.CurrentDesktopId, ColumnsCount, _activeWindows, Windows);
+                    _desktopService.SaveState(_desktopService.CurrentDesktopId, _activeWindowsMap, Windows);
                 }
 
                 // 2. Update current desktop ID
                 _desktopService.CurrentDesktopId = newDesktopId;
 
-                // Move our WPF bar window to the new virtual desktop so it remains visible
-                if (_taskbarHwnd != IntPtr.Zero)
+                // Move our WPF bar windows to the new virtual desktop so they remain visible
+                foreach (var hwnd in _taskbarHwnds)
                 {
-                    _desktopService.MoveWindowToDesktop(_taskbarHwnd, ref newDesktopId);
+                    _desktopService.MoveWindowToDesktop(hwnd, ref newDesktopId);
                 }
 
                 // 3. Load or create new desktop state
                 var state = _desktopService.GetOrCreateState(newDesktopId);
 
-                // 4. Restore ColumnsCount
-                ColumnsCount = state.ColumnsCount;
-
-                // 5. Restore ColumnIndex for managed windows on the new desktop
+                // 4. Restore ColumnIndex for managed windows on the new desktop
                 foreach (var w in Windows)
                 {
                     w.IsOnCurrentDesktop = IsWindowOnCurrentDesktop(w.Handle);
@@ -87,22 +84,18 @@ namespace monaka_wm
                     }
                 }
 
-                // 6. Restore active windows
-                for (int i = 0; i < 3; i++)
+                // 5. Restore active windows
+                _activeWindowsMap.Clear();
+                foreach (var kvp in state.ActiveWindowHandles)
                 {
-                    var active = i < state.ActiveWindows.Count ? state.ActiveWindows[i] : null;
-                    if (active != null && Windows.Contains(active))
+                    var window = Windows.FirstOrDefault(w => w.Handle == kvp.Value);
+                    if (window != null && Windows.Contains(window) && _desktopService.IsWindowOnCurrentDesktop(window.Handle))
                     {
-                        if (_desktopService.IsWindowOnCurrentDesktop(active.Handle))
-                        {
-                            _activeWindows[i] = active;
-                            continue;
-                        }
+                        _activeWindowsMap[kvp.Key] = window;
                     }
-                    _activeWindows[i] = null;
                 }
 
-                // 7. Notify UI and apply layout
+                // 6. Notify UI and apply layout
                 ScanExistingWindows();
                 _desktopService.RaiseDesktopChanged();
                 DeferApplyLayout();
@@ -156,16 +149,19 @@ namespace monaka_wm
             ScanExistingWindows();
             DeferApplyLayout();
             _hookService.Start();
+
+            RegisterGlobalHotkeys();
         }
 
         public void RegisterTaskbarHwnd(IntPtr hWnd)
         {
-            _taskbarHwnd = hWnd;
+            _taskbarHwnds.Add(hWnd);
         }
 
         public void Shutdown()
         {
             _hookService.Stop();
+            UnregisterGlobalHotkeys();
 
             // In Tile mode, restore all windows to normal before exiting
             _layoutEngine.RestoreAllWindows(Windows);
@@ -185,6 +181,8 @@ namespace monaka_wm
                     else
                     {
                         existing.IsOnCurrentDesktop = IsWindowOnCurrentDesktop(hWnd);
+                        var screen = System.Windows.Forms.Screen.FromHandle(hWnd);
+                        existing.MonitorName = screen.DeviceName;
                     }
                 }
                 return true;
@@ -200,7 +198,7 @@ namespace monaka_wm
 
         private bool ShouldManageWindow(IntPtr hWnd)
         {
-            if (hWnd == IntPtr.Zero || hWnd == _taskbarHwnd) return false;
+            if (hWnd == IntPtr.Zero || _taskbarHwnds.Contains(hWnd)) return false;
             if (!NativeMethods.IsWindow(hWnd)) return false;
 
             StringBuilder title = new StringBuilder(256);
@@ -295,10 +293,12 @@ namespace monaka_wm
             }
             catch { }
 
+            var screen = System.Windows.Forms.Screen.FromHandle(hWnd);
             var item = new WindowItem(hWnd, title.ToString(), processName)
             {
                 ColumnIndex = 0,
-                IsOnCurrentDesktop = IsWindowOnCurrentDesktop(hWnd)
+                IsOnCurrentDesktop = IsWindowOnCurrentDesktop(hWnd),
+                MonitorName = screen.DeviceName
             };
 
             // Capture original position IMMEDIATELY, before ApplyLayout moves it off-screen.
@@ -320,10 +320,11 @@ namespace monaka_wm
                     _lastProcessedForegroundHwnd = IntPtr.Zero;
                 }
                 
-                // If it was the active window, update active
-                if (item.ColumnIndex >= 0 && item.ColumnIndex < 3 && _activeWindows[item.ColumnIndex] == item)
+                // If it was the active window, update active in dictionary
+                string key = $"{item.MonitorName}_{item.ColumnIndex}";
+                if (_activeWindowsMap.TryGetValue(key, out var active) && active == item)
                 {
-                    _activeWindows[item.ColumnIndex] = null;
+                    _activeWindowsMap[key] = null;
                 }
 
                 // Clean up original placement cache if the window itself is no longer valid (destroyed/closed)
@@ -403,7 +404,7 @@ namespace monaka_wm
                 IntPtr rootHWnd = NativeMethods.GetAncestor(hWnd, NativeMethods.GA_ROOT);
                 if (rootHWnd == IntPtr.Zero) rootHWnd = hWnd;
 
-                if (rootHWnd == _taskbarHwnd || rootHWnd == _lastProcessedForegroundHwnd) return;
+                if (_taskbarHwnds.Contains(rootHWnd) || rootHWnd == _lastProcessedForegroundHwnd) return;
                 _lastProcessedForegroundHwnd = rootHWnd;
 
                 Guid desktopId = _desktopService.GetWindowDesktopId(rootHWnd);
@@ -472,6 +473,9 @@ namespace monaka_wm
                         break;
                     case NativeMethods.EVENT_OBJECT_CLOAKED:
                         OnWindowCloaked(hWnd);
+                        break;
+                    case 0x000B: // EVENT_SYSTEM_MOVESIZEEND
+                        OnWindowMovedOrResized(hWnd);
                         break;
                 }
             }
@@ -600,13 +604,36 @@ namespace monaka_wm
             }
         }
 
+        private void OnWindowMovedOrResized(IntPtr hWnd)
+        {
+            try
+            {
+                var item = Windows.FirstOrDefault(w => w.Handle == hWnd);
+                if (item != null)
+                {
+                    var screen = System.Windows.Forms.Screen.FromHandle(hWnd);
+                    if (item.MonitorName != screen.DeviceName)
+                    {
+                        item.MonitorName = screen.DeviceName;
+                        // Trigger layout recalculation since it crossed monitors
+                        DeferApplyLayout();
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in OnWindowMovedOrResized: {ex.Message}");
+            }
+        }
+
         public void SetActiveWindowInColumn(WindowItem item)
         {
             int col = item.ColumnIndex;
-            var currentActive = _activeWindows[col];
+            string key = $"{item.MonitorName}_{col}";
+            _activeWindowsMap.TryGetValue(key, out var currentActive);
             if (currentActive != item)
             {
-                _activeWindows[col] = item;
+                _activeWindowsMap[key] = item;
                 DeferApplyLayout();
             }
 
@@ -624,14 +651,8 @@ namespace monaka_wm
 
             item.ColumnIndex = targetColumn;
 
-            int maxUsedColumn = 0;
-            if (Windows.Count > 0)
-            {
-                maxUsedColumn = Windows.Max(w => w.ColumnIndex);
-            }
-            ColumnsCount = Math.Max(1, maxUsedColumn + 1);
-
-            _activeWindows[targetColumn] = item;
+            string key = $"{item.MonitorName}_{targetColumn}";
+            _activeWindowsMap[key] = item;
 
             DeferApplyLayout();
         }
@@ -662,30 +683,35 @@ namespace monaka_wm
         {
             var activeWindows = Windows.Where(w => IsWindowOnCurrentDesktop(w.Handle)).ToList();
 
-            // Collapse gaps between columns
-            bool shifted;
-            do
+            // Collapse gaps between columns per monitor
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
             {
-                shifted = false;
-                for (int i = 0; i < 2; i++)
+                var monitorWindows = activeWindows.Where(w => w.MonitorName == screen.DeviceName).ToList();
+                bool shifted;
+                do
                 {
-                    bool currentHasWindows = activeWindows.Any(w => w.ColumnIndex == i);
-                    bool rightHasWindows = activeWindows.Any(w => w.ColumnIndex > i);
-                    if (!currentHasWindows && rightHasWindows)
+                    shifted = false;
+                    for (int i = 0; i < 2; i++)
                     {
-                        foreach (var w in activeWindows)
+                        bool currentHasWindows = monitorWindows.Any(w => w.ColumnIndex == i);
+                        bool rightHasWindows = monitorWindows.Any(w => w.ColumnIndex > i);
+                        if (!currentHasWindows && rightHasWindows)
                         {
-                            if (w.ColumnIndex > i)
+                            foreach (var w in monitorWindows)
                             {
-                                w.ColumnIndex--;
+                                if (w.ColumnIndex > i)
+                                {
+                                    w.ColumnIndex--;
+                                }
                             }
+                            shifted = true;
                         }
-                        shifted = true;
                     }
-                }
-            } while (shifted);
+                } while (shifted);
+            }
 
-            // Recalculate ColumnsCount
+            // ColumnsCount is updated dynamically per MainWindow in MainWindow.xaml.cs,
+            // but we can still keep a global ColumnsCount fallback for other bindings if needed.
             int maxUsedColumn = 0;
             if (activeWindows.Count > 0)
             {
@@ -693,57 +719,73 @@ namespace monaka_wm
             }
             ColumnsCount = Math.Max(1, maxUsedColumn + 1);
 
-            // Update active windows for all 3 columns
-            for (int i = 0; i < 3; i++)
+            // Update active windows for all columns on each monitor
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
             {
-                var colWindows = activeWindows.Where(w => w.ColumnIndex == i).ToList();
-                if (colWindows.Count > 0)
+                var monitorWindows = activeWindows.Where(w => w.MonitorName == screen.DeviceName).ToList();
+                for (int i = 0; i < 3; i++)
                 {
-                    var active = _activeWindows[i];
-                    if (active == null || active.ColumnIndex != i || !colWindows.Contains(active))
+                    var colWindows = monitorWindows.Where(w => w.ColumnIndex == i).ToList();
+                    string key = $"{screen.DeviceName}_{i}";
+                    if (colWindows.Count > 0)
                     {
-                        _activeWindows[i] = colWindows.First();
+                        _activeWindowsMap.TryGetValue(key, out var active);
+                        if (active == null || active.ColumnIndex != i || !colWindows.Contains(active))
+                        {
+                            _activeWindowsMap[key] = colWindows.First();
+                        }
                     }
-                }
-                else
-                {
-                    _activeWindows[i] = null;
+                    else
+                    {
+                        _activeWindowsMap[key] = null;
+                    }
                 }
             }
 
-            // Update IsActiveInColumn, CanMoveLeft, and CanMoveRight properties
-            int col0Count = activeWindows.Count(w => w.ColumnIndex == 0);
-            int col1Count = activeWindows.Count(w => w.ColumnIndex == 1);
-            int col2Count = activeWindows.Count(w => w.ColumnIndex == 2);
-
-            foreach (var w in activeWindows)
+            // Update IsActiveInColumn, CanMoveLeft, and CanMoveRight properties per monitor
+            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
             {
-                w.IsActiveInColumn = w.ColumnIndex >= 0 && w.ColumnIndex < 3 && w == _activeWindows[w.ColumnIndex];
-                
-                if (ColumnsCount > 1 && w.ColumnIndex == 0 && col0Count <= 1)
+                var monitorWindows = activeWindows.Where(w => w.MonitorName == screen.DeviceName).ToList();
+                int col0Count = monitorWindows.Count(w => w.ColumnIndex == 0);
+                int col1Count = monitorWindows.Count(w => w.ColumnIndex == 1);
+                int col2Count = monitorWindows.Count(w => w.ColumnIndex == 2);
+                int monitorColumnsCount = 1;
+                if (monitorWindows.Count > 0)
                 {
-                    w.CanMoveRight = false;
-                }
-                else if (ColumnsCount == 2 && w.ColumnIndex == 1 && col1Count <= 1)
-                {
-                    w.CanMoveRight = false;
-                }
-                else if (ColumnsCount == 3 && w.ColumnIndex == 1 && col1Count <= 1)
-                {
-                    w.CanMoveRight = false;
-                }
-                else
-                {
-                    w.CanMoveRight = true;
+                    monitorColumnsCount = Math.Max(1, monitorWindows.Max(w => w.ColumnIndex) + 1);
                 }
 
-                if (ColumnsCount == 3 && w.ColumnIndex == 1 && col1Count <= 1)
+                foreach (var w in monitorWindows)
                 {
-                    w.CanMoveLeft = false;
-                }
-                else
-                {
-                    w.CanMoveLeft = true;
+                    string key = $"{screen.DeviceName}_{w.ColumnIndex}";
+                    _activeWindowsMap.TryGetValue(key, out var active);
+                    w.IsActiveInColumn = w.ColumnIndex >= 0 && w.ColumnIndex < 3 && w == active;
+
+                    if (monitorColumnsCount > 1 && w.ColumnIndex == 0 && col0Count <= 1)
+                    {
+                        w.CanMoveRight = false;
+                    }
+                    else if (monitorColumnsCount == 2 && w.ColumnIndex == 1 && col1Count <= 1)
+                    {
+                        w.CanMoveRight = false;
+                    }
+                    else if (monitorColumnsCount == 3 && w.ColumnIndex == 1 && col1Count <= 1)
+                    {
+                        w.CanMoveRight = false;
+                    }
+                    else
+                    {
+                        w.CanMoveRight = true;
+                    }
+
+                    if (monitorColumnsCount == 3 && w.ColumnIndex == 1 && col1Count <= 1)
+                    {
+                        w.CanMoveLeft = false;
+                    }
+                    else
+                    {
+                        w.CanMoveLeft = true;
+                    }
                 }
             }
         }
@@ -758,9 +800,8 @@ namespace monaka_wm
 
             _layoutEngine.ApplyLayout(
                 IsTileMode,
-                ColumnsCount,
                 Windows,
-                _activeWindows,
+                _activeWindowsMap,
                 IsWindowOnCurrentDesktop
             );
         }
@@ -774,6 +815,111 @@ namespace monaka_wm
                 manager.EndSplit();
             }
             manager.DeferApplyLayout();
+        }
+
+        public void MoveWindowToMonitor(WindowItem item, string targetMonitorName)
+        {
+            if (item.MonitorName == targetMonitorName) return;
+
+            // Remove active status in the current column of the old monitor
+            string oldKey = $"{item.MonitorName}_{item.ColumnIndex}";
+            if (_activeWindowsMap.TryGetValue(oldKey, out var active) && active == item)
+            {
+                _activeWindowsMap[oldKey] = null;
+            }
+
+            // Change monitor and reset column index to 0
+            item.MonitorName = targetMonitorName;
+            item.ColumnIndex = 0;
+
+            // Mark it as the active window in the target column of the new monitor
+            string newKey = $"{targetMonitorName}_0";
+            _activeWindowsMap[newKey] = item;
+
+            // Update focused window in WindowManager
+            NativeMethods.SetForegroundWindow(item.Handle);
+
+            DeferApplyLayout();
+        }
+
+        public void MoveActiveWindowToAdjacentMonitor(bool goRight)
+        {
+            var activeHwnd = NativeMethods.GetForegroundWindow();
+            if (activeHwnd == IntPtr.Zero) return;
+
+            // Find the managed WindowItem
+            var item = Windows.FirstOrDefault(w => w.Handle == activeHwnd);
+            if (item == null) return;
+
+            var screens = System.Windows.Forms.Screen.AllScreens.OrderBy(s => s.Bounds.X).ToList();
+            var currentScreen = screens.FirstOrDefault(s => s.DeviceName == item.MonitorName);
+            if (currentScreen == null) return;
+
+            int currentIndex = screens.IndexOf(currentScreen);
+            int targetIndex;
+
+            if (goRight)
+            {
+                targetIndex = (currentIndex + 1) % screens.Count;
+            }
+            else
+            {
+                targetIndex = (currentIndex - 1 + screens.Count) % screens.Count;
+            }
+
+            if (targetIndex == currentIndex) return; // Only 1 monitor connected
+
+            var targetScreen = screens[targetIndex];
+            MoveWindowToMonitor(item, targetScreen.DeviceName);
+        }
+
+        private void RegisterGlobalHotkeys()
+        {
+            try
+            {
+                // Register Win + Shift + Left (ID: 1001)
+                NativeMethods.RegisterHotKey(IntPtr.Zero, 1001, NativeMethods.MOD_WIN | NativeMethods.MOD_SHIFT, NativeMethods.VK_LEFT);
+                // Register Win + Shift + Right (ID: 1002)
+                NativeMethods.RegisterHotKey(IntPtr.Zero, 1002, NativeMethods.MOD_WIN | NativeMethods.MOD_SHIFT, NativeMethods.VK_RIGHT);
+
+                System.Windows.Interop.ComponentDispatcher.ThreadFilterMessage += ComponentDispatcher_ThreadFilterMessage;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to register global hotkeys: {ex.Message}");
+            }
+        }
+
+        private void UnregisterGlobalHotkeys()
+        {
+            try
+            {
+                System.Windows.Interop.ComponentDispatcher.ThreadFilterMessage -= ComponentDispatcher_ThreadFilterMessage;
+                NativeMethods.UnregisterHotKey(IntPtr.Zero, 1001);
+                NativeMethods.UnregisterHotKey(IntPtr.Zero, 1002);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to unregister global hotkeys: {ex.Message}");
+            }
+        }
+
+        private void ComponentDispatcher_ThreadFilterMessage(ref System.Windows.Interop.MSG msg, ref bool handled)
+        {
+            if (msg.message == NativeMethods.WM_HOTKEY)
+            {
+                int id = msg.wParam.ToInt32();
+                if (id == 1001) // Left
+                {
+                    MoveActiveWindowToAdjacentMonitor(false);
+                    handled = true;
+                }
+                else if (id == 1002) // Right
+                {
+                    MoveActiveWindowToAdjacentMonitor(true);
+                    handled = true;
+                }
+            }
         }
     }
 }

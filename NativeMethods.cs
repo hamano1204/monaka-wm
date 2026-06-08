@@ -251,6 +251,8 @@ public static class NativeMethods
     public const uint MOD_SHIFT = 0x0004;
     public const uint MOD_WIN = 0x0008;
     public const uint MOD_NOREPEAT = 0x4000;
+    public const uint VK_LEFT = 0x25;
+    public const uint VK_RIGHT = 0x27;
 }
 
 [ComImport]

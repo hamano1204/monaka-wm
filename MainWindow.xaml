@@ -6,10 +6,12 @@
         xmlns:local="clr-namespace:monaka_wm"
         xmlns:viewmodels="clr-namespace:monaka_wm.ViewModels"
         mc:Ignorable="d"
-        Title="monaka-wm" Height="45" Width="1920"
+        Title="monaka-wm" Height="4" Width="1920"
         WindowStyle="None" ResizeMode="NoResize" Topmost="True"
-        Background="#18181B" FontFamily="Segoe UI, Inter, Arial"
-        Loaded="Window_Loaded" Closed="Window_Closed">
+        AllowsTransparency="True" Background="Transparent"
+        FontFamily="Segoe UI, Inter, Arial"
+        Loaded="Window_Loaded" Closed="Window_Closed"
+        MouseEnter="Window_MouseEnter" MouseLeave="Window_MouseLeave">
 
     <Window.Resources>
         <!-- Boolean to Visibility Converter -->
@@ -104,9 +106,69 @@
             </Setter>
         </Style>
 
+        <!-- Dark themed ContextMenu Style for Tabs -->
+        <Style x:Key="TabContextMenuStyle" TargetType="ContextMenu">
+            <Setter Property="Background" Value="#18181B"/>
+            <Setter Property="BorderBrush" Value="#27272A"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <EventSetter Event="Opened" Handler="TabContextMenu_Opened"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ContextMenu">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="4" Padding="2">
+                            <ItemsPresenter KeyboardNavigation.TabNavigation="Cycle"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Dark themed MenuItem Style for Tabs -->
+        <Style x:Key="TabMenuItemStyle" TargetType="MenuItem">
+            <Setter Property="Foreground" Value="#F4F4F5"/>
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="MenuItem">
+                        <Border x:Name="Border" Background="{TemplateBinding Background}" Padding="{TemplateBinding Padding}" CornerRadius="2">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="20"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <!-- Checkmark -->
+                                <Path x:Name="CheckMark" Grid.Column="0" Data="M 1,4 L 4,7 L 9,2" Stroke="#0EA5E9" StrokeThickness="2" Visibility="Collapsed" VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                                <ContentPresenter Grid.Column="1" ContentSource="Header" RecognizesAccessKey="True" VerticalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="Border" Property="Background" Value="#27272A"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="CheckMark" Property="Visibility" Value="Visible"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="#52525B"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Tab Item Style -->
         <Style x:Key="TabItemStyle" TargetType="ListBoxItem">
             <Setter Property="Background" Value="#202023"/>
+            <Setter Property="ContextMenu">
+                <Setter.Value>
+                    <ContextMenu Style="{StaticResource TabContextMenuStyle}"/>
+                </Setter.Value>
+            </Setter>
             <Setter Property="BorderThickness" Value="0,0,0,2"/>
             <Setter Property="BorderBrush" Value="Transparent"/>
             <Setter Property="Foreground" Value="#A1A1AA"/>
@@ -141,214 +203,220 @@
         </Style>
     </Window.Resources>
 
-    <Grid>
-        <!-- 1. Columns Grid (Spans the entire screen width to align split line exactly) -->
-        <Grid x:Name="ColumnsGrid" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
-            <Grid.ColumnDefinitions>
-                <!-- Column 0 -->
-                <ColumnDefinition x:Name="Column0Definition" Width="*"/>
-                <!-- Splitter 0 Column -->
-                <ColumnDefinition x:Name="Splitter0Definition" Width="Auto"/>
-                <!-- Column 1 -->
-                <ColumnDefinition x:Name="Column1Definition" Width="0"/>
-                <!-- Splitter 1 Column -->
-                <ColumnDefinition x:Name="Splitter1Definition" Width="Auto"/>
-                <!-- Column 2 -->
-                <ColumnDefinition x:Name="Column2Definition" Width="0"/>
-            </Grid.ColumnDefinitions>
+    <Grid x:Name="RootGrid" Background="Transparent">
+        <!-- Top border sensor bar -->
+        <Border x:Name="SensorBar" Height="4" VerticalAlignment="Top" Background="#0EA5E9" Opacity="0.5" IsHitTestVisible="False"/>
 
-            <!-- Column 0 List (Left margin set to 200 to prevent overlap with Left Control Panel) -->
-            <ListBox Grid.Column="0" x:Name="Column0ListBox" 
-                      ItemsSource="{Binding Column0Windows}" 
-                      ItemContainerStyle="{StaticResource TabItemStyle}"
-                      Margin="200,0,10,0"
-                      Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                      ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionChanged="TabListBox_SelectionChanged"
-                      PreviewMouseWheel="TabListBox_PreviewMouseWheel">
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <!-- Process Icon Placeholder or Title -->
-                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
-                            
-                            <!-- Arrow Controls -->
-                            <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                <Button Style="{StaticResource ArrowButtonStyle}" Content="◀" 
-                                        Click="ArrowButton_Click"/>
-                                <Button Content="▶" 
-                                        Click="ArrowButton_Click">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
-                                            <Setter Property="IsEnabled" Value="False"/>
-                                            <Style.Triggers>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding DataContext.IsTileMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
-                                                        <Condition Binding="{Binding CanMoveRight}" Value="True"/>
-                                                    </MultiDataTrigger.Conditions>
-                                                    <Setter Property="IsEnabled" Value="True"/>
-                                                </MultiDataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+        <!-- Main Taskbar panel, offset by 4px from the top sensor -->
+        <Grid x:Name="MainContentGrid" Background="#18181B" Margin="0,4,0,0" Visibility="Collapsed">
+            <!-- 1. Columns Grid (Spans the entire screen width to align split line exactly) -->
+            <Grid x:Name="ColumnsGrid" HorizontalAlignment="Stretch" VerticalAlignment="Stretch">
+                <Grid.ColumnDefinitions>
+                    <!-- Column 0 -->
+                    <ColumnDefinition x:Name="Column0Definition" Width="*"/>
+                    <!-- Splitter 0 Column -->
+                    <ColumnDefinition x:Name="Splitter0Definition" Width="Auto"/>
+                    <!-- Column 1 -->
+                    <ColumnDefinition x:Name="Column1Definition" Width="0"/>
+                    <!-- Splitter 1 Column -->
+                    <ColumnDefinition x:Name="Splitter1Definition" Width="Auto"/>
+                    <!-- Column 2 -->
+                    <ColumnDefinition x:Name="Column2Definition" Width="0"/>
+                </Grid.ColumnDefinitions>
+
+                <!-- Column 0 List (Left margin set to 200 to prevent overlap with Left Control Panel) -->
+                <ListBox Grid.Column="0" x:Name="Column0ListBox" 
+                          ItemsSource="{Binding Column0Windows}" 
+                          ItemContainerStyle="{StaticResource TabItemStyle}"
+                          Margin="200,0,10,0"
+                          Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionChanged="TabListBox_SelectionChanged"
+                          PreviewMouseWheel="TabListBox_PreviewMouseWheel">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <!-- Process Icon Placeholder or Title -->
+                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
+                                
+                                <!-- Arrow Controls -->
+                                <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
+                                    <Button Style="{StaticResource ArrowButtonStyle}" Content="◀" 
+                                            Click="ArrowButton_Click"/>
+                                    <Button Content="▶" 
+                                            Click="ArrowButton_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding DataContext.IsTileMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                                                            <Condition Binding="{Binding CanMoveRight}" Value="True"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
 
-            <!-- Column Separator 0 -->
-            <Border Grid.Column="1" x:Name="Splitter0Control" Width="1" Background="#27272A"
-                    HorizontalAlignment="Center" VerticalAlignment="Stretch" Margin="0,4"/>
+                <!-- Column Separator 0 -->
+                <Border Grid.Column="1" x:Name="Splitter0Control" Width="1" Background="#27272A"
+                        HorizontalAlignment="Center" VerticalAlignment="Stretch" Margin="0,4"/>
 
-            <!-- Column 1 List -->
-            <ListBox Grid.Column="2" x:Name="Column1ListBox" 
-                      ItemsSource="{Binding Column1Windows}" 
-                      ItemContainerStyle="{StaticResource TabItemStyle}"
-                      Margin="10,0,10,0"
-                      Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                      ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionChanged="TabListBox_SelectionChanged"
-                      PreviewMouseWheel="TabListBox_PreviewMouseWheel">
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                <Button Content="◀" 
-                                        Click="ArrowButton_Click">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
-                                            <Setter Property="IsEnabled" Value="False"/>
-                                            <Style.Triggers>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding DataContext.IsTileMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
-                                                        <Condition Binding="{Binding CanMoveLeft}" Value="True"/>
-                                                    </MultiDataTrigger.Conditions>
-                                                    <Setter Property="IsEnabled" Value="True"/>
-                                                </MultiDataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
-                                <Button Content="▶" 
-                                        Click="ArrowButton_Click">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
-                                            <Setter Property="IsEnabled" Value="False"/>
-                                            <Style.Triggers>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding DataContext.IsTileMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
-                                                        <Condition Binding="{Binding CanMoveRight}" Value="True"/>
-                                                    </MultiDataTrigger.Conditions>
-                                                    <Setter Property="IsEnabled" Value="True"/>
-                                                </MultiDataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
+                <!-- Column 1 List -->
+                <ListBox Grid.Column="2" x:Name="Column1ListBox" 
+                          ItemsSource="{Binding Column1Windows}" 
+                          ItemContainerStyle="{StaticResource TabItemStyle}"
+                          Margin="10,0,10,0"
+                          Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionChanged="TabListBox_SelectionChanged"
+                          PreviewMouseWheel="TabListBox_PreviewMouseWheel">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
+                                    <Button Content="◀" 
+                                            Click="ArrowButton_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding DataContext.IsTileMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                                                            <Condition Binding="{Binding CanMoveLeft}" Value="True"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Content="▶" 
+                                            Click="ArrowButton_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding DataContext.IsTileMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                                                            <Condition Binding="{Binding CanMoveRight}" Value="True"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
 
-            <!-- Column Separator 1 -->
-            <Border Grid.Column="3" x:Name="Splitter1Control" Width="1" Background="#27272A"
-                    HorizontalAlignment="Center" VerticalAlignment="Stretch" Margin="0,4"/>
+                <!-- Column Separator 1 -->
+                <Border Grid.Column="3" x:Name="Splitter1Control" Width="1" Background="#27272A"
+                        HorizontalAlignment="Center" VerticalAlignment="Stretch" Margin="0,4"/>
 
-            <!-- Column 2 List (Right margin set to 100 to prevent overlap with Right Action Panel) -->
-            <ListBox Grid.Column="4" x:Name="Column2ListBox" 
-                      ItemsSource="{Binding Column2Windows}" 
-                      ItemContainerStyle="{StaticResource TabItemStyle}"
-                      Margin="10,0,100,0"
-                      Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
-                      ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionChanged="TabListBox_SelectionChanged"
-                      PreviewMouseWheel="TabListBox_PreviewMouseWheel">
-                <ListBox.ItemsPanel>
-                    <ItemsPanelTemplate>
-                        <StackPanel Orientation="Horizontal"/>
-                    </ItemsPanelTemplate>
-                </ListBox.ItemsPanel>
-                <ListBox.ItemTemplate>
-                    <DataTemplate>
-                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                            <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                <Button Content="◀" 
-                                        Click="ArrowButton_Click">
-                                    <Button.Style>
-                                        <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
-                                            <Setter Property="IsEnabled" Value="False"/>
-                                            <Style.Triggers>
-                                                <MultiDataTrigger>
-                                                    <MultiDataTrigger.Conditions>
-                                                        <Condition Binding="{Binding DataContext.IsTileMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
-                                                        <Condition Binding="{Binding CanMoveLeft}" Value="True"/>
-                                                    </MultiDataTrigger.Conditions>
-                                                    <Setter Property="IsEnabled" Value="True"/>
-                                                </MultiDataTrigger>
-                                            </Style.Triggers>
-                                        </Style>
-                                    </Button.Style>
-                                </Button>
-                                <Button Style="{StaticResource ArrowButtonStyle}" Content="▶" 
-                                        Click="ArrowButton_Click" IsEnabled="False"/>
+                <!-- Column 2 List (Right margin set to 100 to prevent overlap with Right Action Panel) -->
+                <ListBox Grid.Column="4" x:Name="Column2ListBox" 
+                          ItemsSource="{Binding Column2Windows}" 
+                          ItemContainerStyle="{StaticResource TabItemStyle}"
+                          Margin="10,0,100,0"
+                          Background="Transparent" BorderThickness="0" ScrollViewer.HorizontalScrollBarVisibility="Hidden"
+                          ScrollViewer.VerticalScrollBarVisibility="Disabled" SelectionChanged="TabListBox_SelectionChanged"
+                          PreviewMouseWheel="TabListBox_PreviewMouseWheel">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel Orientation="Horizontal"/>
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
+                                    <Button Content="◀" 
+                                            Click="ArrowButton_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+                                                <Setter Property="IsEnabled" Value="False"/>
+                                                <Style.Triggers>
+                                                    <MultiDataTrigger>
+                                                        <MultiDataTrigger.Conditions>
+                                                            <Condition Binding="{Binding DataContext.IsTileMode, RelativeSource={RelativeSource AncestorType=Window}}" Value="True"/>
+                                                            <Condition Binding="{Binding CanMoveLeft}" Value="True"/>
+                                                        </MultiDataTrigger.Conditions>
+                                                        <Setter Property="IsEnabled" Value="True"/>
+                                                    </MultiDataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button Style="{StaticResource ArrowButtonStyle}" Content="▶" 
+                                            Click="ArrowButton_Click" IsEnabled="False"/>
+                                </StackPanel>
                             </StackPanel>
-                        </StackPanel>
-                    </DataTemplate>
-                </ListBox.ItemTemplate>
-            </ListBox>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+
+            <!-- 2. Overlay: Left Control Panel -->
+            <StackPanel HorizontalAlignment="Left" VerticalAlignment="Stretch" Orientation="Horizontal" Margin="8,0" Background="#18181B">
+                <!-- Burger Menu Button -->
+                <Button Style="{StaticResource IconButtonStyle}" ToolTip="Menu" Click="BurgerMenu_Click">
+                    <Button.ContextMenu>
+                        <ContextMenu Background="#18181B" Foreground="#F4F4F5" BorderBrush="#27272A">
+                            <MenuItem Header="本アプリの終了" Click="ExitMenu_Click" Background="Transparent" Foreground="#F4F4F5"/>
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                    <TextBlock Text="≡" FontSize="18" VerticalAlignment="Center" Margin="0,-2,0,0"/>
+                </Button>
+
+                <!-- Float/Tile Mode Toggle -->
+                <ToggleButton Style="{StaticResource ToggleButtonStyle}" 
+                               IsChecked="{Binding IsTileMode}" 
+                               Margin="6,0,0,0" Content="Float/Tile"/>
+
+                <!-- Vertical/Horizontal split mode toggle (Postponed but shown disabled) -->
+                <Button Style="{StaticResource IconButtonStyle}" IsEnabled="False" Margin="8,0" ToolTip="Split Direction (Deferred)">
+                    <TextBlock Text="◤Vert/Horiz" FontSize="11" VerticalAlignment="Center"/>
+                </Button>
+                
+                <!-- Visual Divider -->
+                <Border Background="#27272A" Width="1" VerticalAlignment="Stretch" Margin="0,4"/>
+            </StackPanel>
+
+            <!-- 3. Overlay: Right Action Panel -->
+            <StackPanel HorizontalAlignment="Right" VerticalAlignment="Stretch" Orientation="Horizontal" Margin="8,0" Background="#18181B">
+                <!-- End Split Button -->
+                <Button Style="{StaticResource IconButtonStyle}" 
+                        Command="{Binding EndSplitCommand}"
+                        x:Name="EndSplitButton"
+                        ToolTip="End screen split and restore to single column" 
+                        Margin="0,0,4,0">
+                    <TextBlock Text="[End Split]" Foreground="#EF4444" FontWeight="SemiBold" VerticalAlignment="Center"/>
+                </Button>
+            </StackPanel>
         </Grid>
-
-        <!-- 2. Overlay: Left Control Panel -->
-        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Stretch" Orientation="Horizontal" Margin="8,0" Background="#18181B">
-            <!-- Burger Menu Button -->
-            <Button Style="{StaticResource IconButtonStyle}" ToolTip="Menu" Click="BurgerMenu_Click">
-                <Button.ContextMenu>
-                    <ContextMenu Background="#18181B" Foreground="#F4F4F5" BorderBrush="#27272A">
-                        <MenuItem Header="本アプリの終了" Click="ExitMenu_Click" Background="Transparent" Foreground="#F4F4F5"/>
-                    </ContextMenu>
-                </Button.ContextMenu>
-                <TextBlock Text="≡" FontSize="18" VerticalAlignment="Center" Margin="0,-2,0,0"/>
-            </Button>
-
-            <!-- Vertical/Horizontal split mode toggle (Postponed but shown disabled) -->
-            <Button Style="{StaticResource IconButtonStyle}" IsEnabled="False" Margin="6,0,0,0" ToolTip="Split Direction (Deferred)">
-                <TextBlock Text="◤Vert/Horiz" FontSize="11" VerticalAlignment="Center"/>
-            </Button>
-
-            <!-- Float/Tile Mode Toggle -->
-            <ToggleButton Style="{StaticResource ToggleButtonStyle}" 
-                           IsChecked="{Binding IsTileMode}" 
-                           Margin="8,0" Content="Float/Tile"/>
-            
-            <!-- Visual Divider -->
-            <Border Background="#27272A" Width="1" VerticalAlignment="Stretch" Margin="0,4"/>
-        </StackPanel>
-
-        <!-- 3. Overlay: Right Action Panel -->
-        <StackPanel HorizontalAlignment="Right" VerticalAlignment="Stretch" Orientation="Horizontal" Margin="8,0" Background="#18181B">
-            <!-- End Split Button -->
-            <Button Style="{StaticResource IconButtonStyle}" 
-                    Command="{Binding EndSplitCommand}"
-                    x:Name="EndSplitButton"
-                    ToolTip="End screen split and restore to single column" 
-                    Margin="0,0,4,0">
-                <TextBlock Text="[End Split]" Foreground="#EF4444" FontWeight="SemiBold" VerticalAlignment="Center"/>
-            </Button>
-        </StackPanel>
     </Grid>
 </Window>

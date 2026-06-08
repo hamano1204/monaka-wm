@@ -5,8 +5,7 @@ namespace monaka_wm.Services
 {
     public class DesktopLayoutState
     {
-        public int ColumnsCount { get; set; } = 1;
-        public List<WindowItem?> ActiveWindows { get; } = new() { null, null, null };
+        public Dictionary<string, IntPtr> ActiveWindowHandles { get; } = new();
         public Dictionary<IntPtr, int> WindowColumns { get; } = new();
     }
 
@@ -100,16 +99,18 @@ namespace monaka_wm.Services
             return state;
         }
 
-        public void SaveState(Guid desktopId, int columnsCount, IList<WindowItem?> activeWindows, IEnumerable<WindowItem> windows)
+        public void SaveState(Guid desktopId, Dictionary<string, WindowItem?> activeWindowsMap, IEnumerable<WindowItem> windows)
         {
             if (desktopId == Guid.Empty) return;
 
             var state = GetOrCreateState(desktopId);
-            state.ColumnsCount = columnsCount;
-            
-            for (int i = 0; i < 3; i++)
+            state.ActiveWindowHandles.Clear();
+            foreach (var kvp in activeWindowsMap)
             {
-                state.ActiveWindows[i] = i < activeWindows.Count ? activeWindows[i] : null;
+                if (kvp.Value != null)
+                {
+                    state.ActiveWindowHandles[kvp.Key] = kvp.Value.Handle;
+                }
             }
 
             state.WindowColumns.Clear();

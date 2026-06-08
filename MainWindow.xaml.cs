@@ -1,5 +1,7 @@
 using System;
 using System.ComponentModel;
+using System.Linq;
+using Microsoft.Win32;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -17,8 +19,16 @@ namespace monaka_wm
         private bool _isUpdatingLayout = false;
         private System.Windows.Forms.NotifyIcon? _notifyIcon;
         private bool _isSyncingSelection = false;
-        public MainWindow()
+        private readonly System.Windows.Forms.Screen _targetScreen;
+        private System.Windows.Threading.DispatcherTimer? _hoverTimer;
+
+        public MainWindow() : this(System.Windows.Forms.Screen.PrimaryScreen!)
         {
+        }
+
+        public MainWindow(System.Windows.Forms.Screen screen)
+        {
+            _targetScreen = screen;
             InitializeComponent();
 
             // Synchronously ensure handle and register to WindowManager to prevent race condition during startup scan
@@ -31,17 +41,28 @@ namespace monaka_wm
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            // Position at top of screen
-            this.Left = 0;
-            this.Top = 0;
-            this.Width = SystemParameters.PrimaryScreenWidth;
-            this.Height = WindowManager.TASKBAR_HEIGHT;
+            // Position at top of the target screen
+            var presentationSource = PresentationSource.FromVisual(this);
+            double dpiScaleX = 1.0;
+            double dpiScaleY = 1.0;
+            if (presentationSource?.CompositionTarget != null)
+            {
+                dpiScaleX = presentationSource.CompositionTarget.TransformToDevice.M11;
+                dpiScaleY = presentationSource.CompositionTarget.TransformToDevice.M22;
+            }
 
-            // Register as AppBar
-            AppBarHelper.Register(this, WindowManager.TASKBAR_HEIGHT);
+            this.Left = _targetScreen.Bounds.Left / dpiScaleX;
+            this.Top = _targetScreen.Bounds.Top / dpiScaleY;
+            this.Width = _targetScreen.Bounds.Width / dpiScaleX;
+            this.Height = 4; // Start collapsed
 
-            // Initialize ViewModel and set DataContext
-            _viewModel = new MainViewModel();
+            // Apply WS_EX_NOACTIVATE so clicking tabs doesn't steal window focus
+            var hwnd = new WindowInteropHelper(this).Handle;
+            int exStyle = (int)NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE);
+            NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(exStyle | (int)NativeMethods.WS_EX_NOACTIVATE));
+
+            // Initialize ViewModel and set DataContext, filtering for this screen
+            _viewModel = new MainViewModel(_targetScreen);
             this.DataContext = _viewModel;
 
             // Listen to Collection changes to attach/detach property changed handlers for selection sync
@@ -57,17 +78,31 @@ namespace monaka_wm
             // Listen to virtual desktop switches
             WindowManager.Instance.DesktopChanged += OnDesktopChanged;
 
-            // Initialize NotifyIcon (System Tray)
-            _notifyIcon = new System.Windows.Forms.NotifyIcon
+            // Initialize NotifyIcon (System Tray) - Only on primary screen to avoid duplicates
+            if (_targetScreen.Primary)
             {
-                Icon = System.Drawing.SystemIcons.Application,
-                Visible = true,
-                Text = "monaka-wm"
-            };
+                _notifyIcon = new System.Windows.Forms.NotifyIcon
+                {
+                    Icon = System.Drawing.SystemIcons.Application,
+                    Visible = true,
+                    Text = "monaka-wm"
+                };
 
-            var contextMenu = new System.Windows.Forms.ContextMenuStrip();
-            contextMenu.Items.Add("monaka-wm の終了", null, (s, ev) => this.Close());
-            _notifyIcon.ContextMenuStrip = contextMenu;
+                var contextMenu = new System.Windows.Forms.ContextMenuStrip();
+                var startupItem = new System.Windows.Forms.ToolStripMenuItem("PC起動時に自動起動する")
+                {
+                    CheckOnClick = true,
+                    Checked = IsStartupEnabled()
+                };
+                startupItem.CheckedChanged += (s, ev) =>
+                {
+                    SetStartup(startupItem.Checked);
+                };
+                contextMenu.Items.Add(startupItem);
+                contextMenu.Items.Add(new System.Windows.Forms.ToolStripSeparator());
+                contextMenu.Items.Add("monaka-wm の終了", null, (s, ev) => this.Close());
+                _notifyIcon.ContextMenuStrip = contextMenu;
+            }
 
             // Initial selection sync
             SyncAllSelections();
@@ -75,15 +110,10 @@ namespace monaka_wm
 
         private void Window_Closed(object sender, EventArgs e)
         {
-
-            // Unregister AppBar (may throw if HwndSource is already disposed)
-            try
+            if (_hoverTimer != null)
             {
-                AppBarHelper.Unregister(this);
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"AppBar unregister error: {ex.Message}");
+                _hoverTimer.Stop();
+                _hoverTimer = null;
             }
 
             // Remove DependencyPropertyDescriptor listeners
@@ -113,6 +143,47 @@ namespace monaka_wm
             }
         }
 
+        private void Window_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_hoverTimer != null)
+            {
+                _hoverTimer.Stop();
+            }
+
+            _hoverTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(200)
+            };
+            _hoverTimer.Tick += (s, ev) =>
+            {
+                _hoverTimer.Stop();
+                ExpandWindow();
+            };
+            _hoverTimer.Start();
+        }
+
+        private void Window_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
+        {
+            if (_hoverTimer != null)
+            {
+                _hoverTimer.Stop();
+            }
+
+            CollapseWindow();
+        }
+
+        private void ExpandWindow()
+        {
+            this.Height = WindowManager.TASKBAR_HEIGHT;
+            MainContentGrid.Visibility = Visibility.Visible;
+        }
+
+        private void CollapseWindow()
+        {
+            this.Height = 4;
+            MainContentGrid.Visibility = Visibility.Collapsed;
+        }
+
         private void Windows_CollectionChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
         {
             if (e.OldItems != null)
@@ -130,13 +201,17 @@ namespace monaka_wm
                 }
             }
             SyncAllSelections();
+            SyncLayoutDefinitions();
         }
 
         private void WindowItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(WindowItem.ColumnIndex) || e.PropertyName == nameof(WindowItem.IsActiveInColumn))
+            if (e.PropertyName == nameof(WindowItem.ColumnIndex) || 
+                e.PropertyName == nameof(WindowItem.IsActiveInColumn) || 
+                e.PropertyName == nameof(WindowItem.MonitorName))
             {
                 SyncAllSelections();
+                SyncLayoutDefinitions();
             }
         }
 
@@ -212,7 +287,18 @@ namespace monaka_wm
             if (_isUpdatingLayout) return;
             _isUpdatingLayout = true;
 
-            int count = WindowManager.Instance.ColumnsCount;
+            int count = 1;
+            if (_targetScreen != null)
+            {
+                var monitorWindows = WindowManager.Instance.Windows
+                    .Where(w => w.MonitorName == _targetScreen.DeviceName && WindowManager.Instance.IsWindowOnCurrentDesktop(w.Handle))
+                    .ToList();
+                if (monitorWindows.Count > 0)
+                {
+                    count = Math.Max(1, monitorWindows.Max(w => w.ColumnIndex) + 1);
+                }
+            }
+
             bool isTile = WindowManager.Instance.IsTileMode;
 
             if (!isTile || count <= 1)
@@ -303,6 +389,90 @@ namespace monaka_wm
                 }
             }
             e.Handled = true;
+        }
+
+        private void TabContextMenu_Opened(object sender, RoutedEventArgs e)
+        {
+            if (sender is System.Windows.Controls.ContextMenu menu)
+            {
+                menu.Items.Clear();
+
+                if (menu.PlacementTarget is FrameworkElement element && element.DataContext is WindowItem item)
+                {
+                    var screens = System.Windows.Forms.Screen.AllScreens.OrderBy(s => s.Bounds.X).ToList();
+                    var menuItemStyle = this.FindResource("TabMenuItemStyle") as Style;
+
+                    foreach (var screen in screens)
+                    {
+                        string screenName = screen.Primary 
+                            ? $"{screen.DeviceName} (メイン モニター)" 
+                            : $"{screen.DeviceName}";
+
+                        var menuItem = new System.Windows.Controls.MenuItem
+                        {
+                            Header = screenName,
+                            IsChecked = (item.MonitorName == screen.DeviceName),
+                            IsEnabled = (item.MonitorName != screen.DeviceName),
+                            Style = menuItemStyle
+                        };
+
+                        menuItem.Click += (s, ev) =>
+                        {
+                            WindowManager.Instance.MoveWindowToMonitor(item, screen.DeviceName);
+                        };
+
+                        menu.Items.Add(menuItem);
+                    }
+                }
+            }
+        }
+
+        private const string StartupRegistryKey = @"Software\Microsoft\Windows\CurrentVersion\Run";
+        private const string StartupValueName = "monaka-wm";
+
+        private bool IsStartupEnabled()
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey);
+                if (key != null)
+                {
+                    var val = key.GetValue(StartupValueName);
+                    return val != null && val.ToString() == Environment.ProcessPath;
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to read registry: {ex.Message}");
+            }
+            return false;
+        }
+
+        private void SetStartup(bool enable)
+        {
+            try
+            {
+                using var key = Registry.CurrentUser.OpenSubKey(StartupRegistryKey, true);
+                if (key != null)
+                {
+                    if (enable)
+                    {
+                        var processPath = Environment.ProcessPath;
+                        if (!string.IsNullOrEmpty(processPath))
+                        {
+                            key.SetValue(StartupValueName, processPath);
+                        }
+                    }
+                    else
+                    {
+                        key.DeleteValue(StartupValueName, false);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Failed to write registry: {ex.Message}");
+            }
         }
     }
 }

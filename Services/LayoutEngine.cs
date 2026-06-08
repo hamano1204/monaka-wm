@@ -31,9 +31,8 @@ namespace monaka_wm.Services
 
         public void ApplyLayout(
             bool isTileMode, 
-            int columnsCount, 
             IEnumerable<WindowItem> windows, 
-            IList<WindowItem?> activeWindows, 
+            Dictionary<string, WindowItem?> activeWindowsMap, 
             Func<IntPtr, bool> isWindowOnCurrentDesktop)
         {
             if (!isTileMode)
@@ -53,81 +52,96 @@ namespace monaka_wm.Services
                     CaptureWindowPlacement(w);
                 }
 
-                // Tile Mode Layout Logic
-                var (dpiScaleX, dpiScaleY) = GetDpiScale();
-
-                // Use SystemParameters.WorkArea which automatically excludes both the Windows taskbar and our AppBar
-                int layoutLeft = (int)(SystemParameters.WorkArea.Left * dpiScaleX);
-                int layoutTop = (int)(SystemParameters.WorkArea.Top * dpiScaleY);
-                int layoutWidth = (int)(SystemParameters.WorkArea.Width * dpiScaleX);
-                int layoutHeight = (int)(SystemParameters.WorkArea.Height * dpiScaleY);
-
-                int cols = columnsCount;
-
-                // Determine active windows for currently active columns
-                var activeInCols = new List<WindowItem>();
-                for (int i = 0; i < cols; i++)
+                // Loop over all screens to apply independent layout per monitor
+                foreach (var screen in System.Windows.Forms.Screen.AllScreens)
                 {
-                    if (i < activeWindows.Count)
+                    // Find active windows belonging to this screen
+                    var screenWindows = windows.Where(w => w.MonitorName == screen.DeviceName && 
+                                                           NativeMethods.IsWindow(w.Handle) && 
+                                                           isWindowOnCurrentDesktop(w.Handle)).ToList();
+
+                    // Screen WorkingArea is already in physical pixels, so SetWindowPos coordinates match directly (no DPI conversion needed)
+                    int layoutLeft = screen.WorkingArea.Left;
+                    int layoutTop = screen.WorkingArea.Top;
+                    int layoutWidth = screen.WorkingArea.Width;
+                    int layoutHeight = screen.WorkingArea.Height;
+
+                    // Determine active windows for each column on this screen
+                    var activeInCols = new List<WindowItem>();
+                    for (int i = 0; i < 3; i++) // We support up to 3 columns
                     {
-                        var active = activeWindows[i];
-                        if (active != null && NativeMethods.IsWindow(active.Handle) && isWindowOnCurrentDesktop(active.Handle))
+                        var colWindows = screenWindows.Where(w => w.ColumnIndex == i).ToList();
+                        if (colWindows.Count > 0)
                         {
-                            activeInCols.Add(active);
+                            string key = $"{screen.DeviceName}_{i}";
+                            activeWindowsMap.TryGetValue(key, out var active);
+                            if (active != null && colWindows.Contains(active))
+                            {
+                                activeInCols.Add(active);
+                            }
+                            else
+                            {
+                                // Fallback to the first window in this column
+                                var first = colWindows.First();
+                                activeInCols.Add(first);
+                            }
                         }
                     }
-                }
 
-                int activeColsCount = activeInCols.Count;
+                    int activeColsCount = activeInCols.Count;
 
-                if (activeColsCount <= 1)
-                {
-                    // Single Column Layout (even if ColumnsCount > 1, if only one column has an active window, display it full width)
-                    var active = activeInCols.FirstOrDefault();
-                    if (active != null)
+                    if (activeColsCount == 0)
                     {
+                        // No active windows on this monitor, nothing to lay out
+                        continue;
+                    }
+
+                    if (activeColsCount == 1)
+                    {
+                        // Single Column Layout on this monitor
+                        var active = activeInCols[0];
                         EnsureWindowRestored(active.Handle);
                         int adjustedLeft = layoutLeft - BorderAdjustmentOffset;
                         int adjustedWidth = layoutWidth + (BorderAdjustmentOffset * 2);
                         int adjustedHeight = layoutHeight + BorderAdjustmentOffset;
                         NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, adjustedLeft, layoutTop, adjustedWidth, adjustedHeight, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
-                    }
 
-                    // Hide all other windows
-                    foreach (var w in windows)
-                    {
-                        if (w != active && NativeMethods.IsWindow(w.Handle) && isWindowOnCurrentDesktop(w.Handle))
+                        // Hide other windows on this monitor
+                        foreach (var w in screenWindows)
                         {
-                            HideWindow(w.Handle);
+                            if (w != active)
+                            {
+                                HideWindow(w.Handle);
+                            }
                         }
                     }
-                }
-                else
-                {
-                    // Multiple Columns Layout - evenly split based on activeColsCount
-                    int colWidth = layoutWidth / activeColsCount;
-
-                    for (int i = 0; i < activeColsCount; i++)
+                    else
                     {
-                        var active = activeInCols[i];
-                        int colLeft = layoutLeft + (i * colWidth);
-                        int colW = (i == activeColsCount - 1) ? (layoutWidth - (i * colWidth)) : colWidth;
+                        // Multiple Columns Layout - evenly split based on activeColsCount
+                        int colWidth = layoutWidth / activeColsCount;
 
-                        EnsureWindowRestored(active.Handle);
-
-                        int adjustedLeft = colLeft - BorderAdjustmentOffset;
-                        int adjustedWidth = colW + (BorderAdjustmentOffset * 2);
-                        int adjustedHeight = layoutHeight + BorderAdjustmentOffset;
-
-                        NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, adjustedLeft, layoutTop, adjustedWidth, adjustedHeight, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
-                    }
-
-                    // Hide all other windows
-                    foreach (var w in windows)
-                    {
-                        if (!activeInCols.Contains(w) && NativeMethods.IsWindow(w.Handle) && isWindowOnCurrentDesktop(w.Handle))
+                        for (int i = 0; i < activeColsCount; i++)
                         {
-                            HideWindow(w.Handle);
+                            var active = activeInCols[i];
+                            int colLeft = layoutLeft + (i * colWidth);
+                            int colW = (i == activeColsCount - 1) ? (layoutWidth - (i * colWidth)) : colWidth;
+
+                            EnsureWindowRestored(active.Handle);
+
+                            int adjustedLeft = colLeft - BorderAdjustmentOffset;
+                            int adjustedWidth = colW + (BorderAdjustmentOffset * 2);
+                            int adjustedHeight = layoutHeight + BorderAdjustmentOffset;
+
+                            NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, adjustedLeft, layoutTop, adjustedWidth, adjustedHeight, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
+                        }
+
+                        // Hide other windows on this monitor
+                        foreach (var w in screenWindows)
+                        {
+                            if (!activeInCols.Contains(w))
+                            {
+                                HideWindow(w.Handle);
+                            }
                         }
                     }
                 }

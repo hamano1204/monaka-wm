@@ -8,6 +8,7 @@ namespace monaka_wm.Services
         private IntPtr _objectLifecycleHook = IntPtr.Zero;
         private IntPtr _minimizeRestoreHook = IntPtr.Zero;
         private IntPtr _cloakHook = IntPtr.Zero;
+        private IntPtr _moveSizeHook = IntPtr.Zero;
         
         private readonly NativeMethods.WinEventProc _winEventProc;
         private readonly Action<uint, IntPtr, int, int, uint, uint> _onWindowEvent;
@@ -65,6 +66,17 @@ namespace monaka_wm.Services
                 0,
                 NativeMethods.WINEVENT_OUTOFCONTEXT
             );
+
+            // Hook for window move/size end (to detect monitor crossings)
+            _moveSizeHook = NativeMethods.SetWinEventHook(
+                0x000B, // EVENT_SYSTEM_MOVESIZEEND
+                0x000B,
+                IntPtr.Zero,
+                _winEventProc,
+                0,
+                0,
+                NativeMethods.WINEVENT_OUTOFCONTEXT
+            );
         }
 
         public void Stop()
@@ -88,6 +100,11 @@ namespace monaka_wm.Services
             {
                 NativeMethods.UnhookWinEvent(_cloakHook);
                 _cloakHook = IntPtr.Zero;
+            }
+            if (_moveSizeHook != IntPtr.Zero)
+            {
+                NativeMethods.UnhookWinEvent(_moveSizeHook);
+                _moveSizeHook = IntPtr.Zero;
             }
         }
 

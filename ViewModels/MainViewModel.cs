@@ -13,6 +13,7 @@ namespace monaka_wm.ViewModels
         private readonly ListCollectionView _column0Windows;
         private readonly ListCollectionView _column1Windows;
         private readonly ListCollectionView _column2Windows;
+        private readonly System.Windows.Forms.Screen _screen;
 
         public ICollectionView Column0Windows => _column0Windows;
         public ICollectionView Column1Windows => _column1Windows;
@@ -39,22 +40,28 @@ namespace monaka_wm.ViewModels
         public ICommand EndSplitCommand { get; }
         public ICommand SetActiveWindowCommand { get; }
 
-        public MainViewModel()
+        public MainViewModel() : this(System.Windows.Forms.Screen.PrimaryScreen!)
         {
-            // Create three independent views of the same collection
+        }
+
+        public MainViewModel(System.Windows.Forms.Screen screen)
+        {
+            _screen = screen;
+
+            // Create three independent views of the same collection, filtered by screen
             _column0Windows = new ListCollectionView(WindowManager.Instance.Windows)
             {
-                Filter = item => item is WindowItem w && w.ColumnIndex == 0 && w.IsOnCurrentDesktop
+                Filter = item => item is WindowItem w && w.ColumnIndex == 0 && w.IsOnCurrentDesktop && w.MonitorName == _screen.DeviceName
             };
 
             _column1Windows = new ListCollectionView(WindowManager.Instance.Windows)
             {
-                Filter = item => item is WindowItem w && w.ColumnIndex == 1 && w.IsOnCurrentDesktop
+                Filter = item => item is WindowItem w && w.ColumnIndex == 1 && w.IsOnCurrentDesktop && w.MonitorName == _screen.DeviceName
             };
 
             _column2Windows = new ListCollectionView(WindowManager.Instance.Windows)
             {
-                Filter = item => item is WindowItem w && w.ColumnIndex == 2 && w.IsOnCurrentDesktop
+                Filter = item => item is WindowItem w && w.ColumnIndex == 2 && w.IsOnCurrentDesktop && w.MonitorName == _screen.DeviceName
             };
 
             // Hook commands
@@ -118,7 +125,10 @@ namespace monaka_wm.ViewModels
 
         private void WindowItem_PropertyChanged(object? sender, PropertyChangedEventArgs e)
         {
-            if (e.PropertyName == nameof(WindowItem.ColumnIndex) || e.PropertyName == nameof(WindowItem.IsActiveInColumn) || e.PropertyName == nameof(WindowItem.IsOnCurrentDesktop))
+            if (e.PropertyName == nameof(WindowItem.ColumnIndex) || 
+                e.PropertyName == nameof(WindowItem.IsActiveInColumn) || 
+                e.PropertyName == nameof(WindowItem.IsOnCurrentDesktop) ||
+                e.PropertyName == nameof(WindowItem.MonitorName))
             {
                 RefreshAllViews();
             }
