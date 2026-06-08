@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Windows;
 using System.Windows.Forms;
 using Application = System.Windows.Application;
@@ -7,11 +8,29 @@ namespace monaka_wm
 {
     public partial class App : Application
     {
+        private const string MutexName = "Global\\monaka-wm-single-instance";
+        private Mutex? _mutex;
+
         private bool _isShuttingDown = false;
         private readonly System.Collections.Generic.List<MainWindow> _mainWindows = new();
 
         private void Application_Startup(object sender, StartupEventArgs e)
         {
+            // 多重起動チェック
+            _mutex = new Mutex(true, MutexName, out bool createdNew);
+            if (!createdNew)
+            {
+                MessageBox.Show(
+                    "monaka-wm はすでに起動しています。\nmonaka-wm is already running.",
+                    "monaka-wm",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                _mutex.Close();
+                _mutex = null;
+                this.Shutdown();
+                return;
+            }
+
             this.ShutdownMode = ShutdownMode.OnExplicitShutdown;
 
             var screens = System.Windows.Forms.Screen.AllScreens;
@@ -52,6 +71,14 @@ namespace monaka_wm
             _isShuttingDown = true;
             CloseAllWindows();
             WindowManager.Instance.Shutdown();
+
+            // Mutexを解放
+            if (_mutex != null)
+            {
+                try { _mutex.ReleaseMutex(); } catch { }
+                _mutex.Close();
+                _mutex = null;
+            }
         }
     }
 }
