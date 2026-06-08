@@ -1,0 +1,168 @@
+[14:03:34.110] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:03:34.114] Rejected: Title is empty
+[14:05:50.140] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:05:50.141] Rejected: Title is empty
+[14:06:11.881] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:11.881] Rejected: Title is empty
+[14:06:13.667] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:13.667] Rejected: Title is empty
+[14:06:15.680] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:15.681] Rejected: Title is empty
+[14:06:17.544] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:17.544] Rejected: Title is empty
+[14:06:17.965] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:17.966] Rejected: Title is empty
+[14:06:26.518] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:26.519] Rejected: Title is empty
+[14:06:27.261] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:27.261] Rejected: Title is empty
+[14:06:29.172] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:29.172] Rejected: Title is empty
+[14:06:30.732] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:06:30.733] Rejected: Title is empty
+[14:09:46.461] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:09:46.474] Rejected: Title is empty
+[14:09:53.197] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:09:53.198] Rejected: Title is empty
+[14:09:55.322] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:09:55.323] Rejected: Title is empty
+[14:09:57.677] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:09:57.677] Rejected: Title is empty
+[14:10:00.125] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:00.127] Rejected: Title is empty
+[14:10:01.040] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:01.040] Rejected: Title is empty
+[14:10:02.929] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:02.929] Rejected: Title is empty
+[14:10:04.442] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:04.443] Rejected: Title is empty
+[14:10:04.909] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:04.910] Rejected: Title is empty
+[14:10:06.778] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:06.779] Rejected: Title is empty
+[14:10:13.466] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:13.466] Rejected: Title is empty
+[14:10:14.263] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:14.264] Rejected: Title is empty
+[14:10:16.737] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:16.738] Rejected: Title is empty
+[14:10:17.349] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:17.349] Rejected: Title is empty
+[14:10:20.010] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:20.011] Rejected: Title is empty
+[14:10:20.656] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:20.657] Rejected: Title is empty
+[14:10:22.097] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:22.098] Rejected: Title is empty
+[14:10:22.822] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:22.822] Rejected: Title is empty
+[14:10:24.577] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:10:24.578] Rejected: Title is empty
+[14:16:24.958] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:16:24.960] Rejected: Title is empty
+[14:16:25.922] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:16:25.923] Rejected: Title is empty
+[14:16:28.831] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:16:28.831] Rejected: Title is empty
+[14:16:44.095] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:16:44.095] Rejected: Title is empty
+[14:16:46.578] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:16:46.579] Rejected: Title is empty
+[14:16:47.615] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:16:47.616] Rejected: Title is empty
+[14:17:02.522] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:02.523] Rejected: Title is empty
+[14:17:03.073] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:03.073] Rejected: Title is empty
+[14:17:06.178] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:06.179] Rejected: Title is empty
+[14:17:07.242] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:07.242] Rejected: Title is empty
+[14:17:08.971] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:08.971] Rejected: Title is empty
+[14:17:13.816] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:13.816] Rejected: Title is empty
+[14:17:34.030] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:34.031] Rejected: Title is empty
+[14:17:35.884] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:35.885] Rejected: Title is empty
+[14:17:38.048] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:38.048] Rejected: Title is empty
+[14:17:40.615] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:40.616] Rejected: Title is empty
+[14:17:43.007] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:43.008] Rejected: Title is empty
+[14:17:44.505] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:44.506] Rejected: Title is empty
+[14:17:46.462] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:46.463] Rejected: Title is empty
+[14:17:47.873] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:47.874] Rejected: Title is empty
+[14:17:48.376] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:48.376] Rejected: Title is empty
+[14:17:49.271] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:49.272] Rejected: Title is empty
+[14:17:50.914] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:50.914] Rejected: Title is empty
+[14:17:55.946] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:55.947] Rejected: Title is empty
+[14:17:59.650] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:17:59.651] Rejected: Title is empty
+[14:18:01.096] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:18:01.096] Rejected: Title is empty
+[14:18:03.243] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:18:03.244] Rejected: Title is empty
+[14:18:05.473] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:18:05.473] Rejected: Title is empty
+[14:18:07.970] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:18:07.971] Rejected: Title is empty
+[14:18:13.449] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:18:13.450] Rejected: Title is empty
+[14:18:17.412] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:18:17.412] Rejected: Title is empty
+[14:22:43.573] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:43.574] Rejected: Title is empty
+[14:22:45.856] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:45.856] Rejected: Title is empty
+[14:22:46.355] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:46.356] Rejected: Title is empty
+[14:22:48.876] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:48.877] Rejected: Title is empty
+[14:22:50.172] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:50.173] Rejected: Title is empty
+[14:22:51.150] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:51.151] Rejected: Title is empty
+[14:22:53.722] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:53.723] Rejected: Title is empty
+[14:22:56.333] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:56.333] Rejected: Title is empty
+[14:22:57.078] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:57.078] Rejected: Title is empty
+[14:22:59.252] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:59.253] Rejected: Title is empty
+[14:22:59.776] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:22:59.777] Rejected: Title is empty
+[14:23:00.937] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:23:00.938] Rejected: Title is empty
+[14:23:02.841] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:23:02.841] Rejected: Title is empty
+[14:24:48.974] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:24:48.974] Rejected: Title is empty
+[14:24:49.893] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:24:49.894] Rejected: Title is empty
+[14:24:51.489] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:24:51.490] Rejected: Title is empty
+[14:24:52.663] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:24:52.664] Rejected: Title is empty
+[14:25:15.864] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:25:15.865] Rejected: Title is empty
+[14:25:24.695] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:25:24.695] Rejected: Title is empty
+[14:25:25.264] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:25:25.264] Rejected: Title is empty
+[14:25:27.570] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:25:27.571] Rejected: Title is empty
+[14:26:16.605] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:26:16.606] Rejected: Title is empty
+[14:26:19.861] --- Checking window 1180932 (cls: ApplicationFrameWindow, title: ) ---
+[14:26:19.862] Rejected: Title is empty

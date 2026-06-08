@@ -1,0 +1,15 @@
+# Build artifacts
+bin/
+obj/
+
+# Visual Studio / VS Code
+.vs/
+.vscode/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# App local data
+config/settings.json
+snapshots/

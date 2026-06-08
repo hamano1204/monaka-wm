@@ -1,0 +1,10 @@
+<Application x:Class="monaka_wm.App"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:monaka_wm"
+             Startup="Application_Startup"
+             Exit="Application_Exit">
+    <Application.Resources>
+         
+    </Application.Resources>
+</Application>
