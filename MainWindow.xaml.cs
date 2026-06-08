@@ -57,10 +57,11 @@ namespace monaka_wm
             this.Width = _targetScreen.Bounds.Width / dpiScaleX;
             this.Height = CollapsedHeight; // Start collapsed
 
-            // Apply WS_EX_NOACTIVATE so clicking tabs doesn't steal window focus
+            // Apply WS_EX_NOACTIVATE so clicking tabs doesn't steal window focus,
+            // and WS_EX_TOOLWINDOW to hide it from the Alt+Tab window switcher.
             var hwnd = new WindowInteropHelper(this).Handle;
             int exStyle = (int)NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE);
-            NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(exStyle | (int)NativeMethods.WS_EX_NOACTIVATE));
+            NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(exStyle | (int)NativeMethods.WS_EX_NOACTIVATE | (int)NativeMethods.WS_EX_TOOLWINDOW));
 
             // Initialize ViewModel and set DataContext, filtering for this screen
             _viewModel = new MainViewModel(_targetScreen);
@@ -85,9 +86,27 @@ namespace monaka_wm
             // Initialize NotifyIcon (System Tray) - Only on primary screen to avoid duplicates
             if (_targetScreen.Primary)
             {
+                System.Drawing.Icon? trayIcon = null;
+                try
+                {
+                    var iconUri = new Uri("pack://application:,,,/app.ico", UriKind.Absolute);
+                    var streamInfo = System.Windows.Application.GetResourceStream(iconUri);
+                    if (streamInfo != null)
+                    {
+                        using (var stream = streamInfo.Stream)
+                        {
+                            trayIcon = new System.Drawing.Icon(stream);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Failed to load app.ico from resources: {ex.Message}");
+                }
+
                 _notifyIcon = new System.Windows.Forms.NotifyIcon
                 {
-                    Icon = System.Drawing.SystemIcons.Application,
+                    Icon = trayIcon ?? System.Drawing.SystemIcons.Application,
                     Visible = true,
                     Text = "monaka-wm"
                 };
