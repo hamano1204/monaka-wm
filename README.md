@@ -74,6 +74,11 @@ MainWindow (WPF UI)
 
 [LICENSE](./LICENSE) ファイルを参照してください。
 
+### 注意事項
+- 本アプリはAIで作成されたアプリです。
+- そのため、コードの品質には注意が必要です。
+- 危険なコードは含まれていないはずですが、自己責任でご利用ください。
+
 ---
 
 <a name="english"></a>
@@ -155,6 +160,10 @@ MainWindow (WPF UI)
 
 See the [LICENSE](./LICENSE) file for details.
 
+### Notes
+- This application was developed using AI.
+- Please be aware that code quality may require attention.
+- While it should not contain any malicious code, please use it at your own risk.
 
 ### Screenshot
 
