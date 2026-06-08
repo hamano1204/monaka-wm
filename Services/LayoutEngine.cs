@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using Application = System.Windows.Application;
+using monaka_wm;
 
 namespace monaka_wm.Services
 {
@@ -33,7 +34,8 @@ namespace monaka_wm.Services
             bool isTileMode, 
             IEnumerable<WindowItem> windows, 
             Dictionary<string, WindowItem?> activeWindowsMap, 
-            Func<IntPtr, bool> isWindowOnCurrentDesktop)
+            Func<IntPtr, bool> isWindowOnCurrentDesktop,
+            Func<string, SplitDirection> getSplitDirection)
         {
             if (!isTileMode)
             {
@@ -117,22 +119,46 @@ namespace monaka_wm.Services
                     }
                     else
                     {
-                        // Multiple Columns Layout - evenly split based on activeColsCount
-                        int colWidth = layoutWidth / activeColsCount;
-
-                        for (int i = 0; i < activeColsCount; i++)
+                        var splitDir = getSplitDirection(screen.DeviceName);
+                        if (splitDir == SplitDirection.Vertical)
                         {
-                            var active = activeInCols[i];
-                            int colLeft = layoutLeft + (i * colWidth);
-                            int colW = (i == activeColsCount - 1) ? (layoutWidth - (i * colWidth)) : colWidth;
+                            // Multiple Rows Layout - evenly split based on activeColsCount
+                            int rowHeight = layoutHeight / activeColsCount;
 
-                            EnsureWindowRestored(active.Handle);
+                            for (int i = 0; i < activeColsCount; i++)
+                            {
+                                var active = activeInCols[i];
+                                int rowTop = layoutTop + (i * rowHeight);
+                                int rowH = (i == activeColsCount - 1) ? (layoutHeight - (i * rowHeight)) : rowHeight;
 
-                            int adjustedLeft = colLeft - BorderAdjustmentOffset;
-                            int adjustedWidth = colW + (BorderAdjustmentOffset * 2);
-                            int adjustedHeight = layoutHeight + BorderAdjustmentOffset;
+                                EnsureWindowRestored(active.Handle);
 
-                            NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, adjustedLeft, layoutTop, adjustedWidth, adjustedHeight, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
+                                int adjustedLeft = layoutLeft - BorderAdjustmentOffset;
+                                int adjustedWidth = layoutWidth + (BorderAdjustmentOffset * 2);
+                                int adjustedHeight = rowH + BorderAdjustmentOffset;
+
+                                NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, adjustedLeft, rowTop, adjustedWidth, adjustedHeight, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
+                            }
+                        }
+                        else
+                        {
+                            // Multiple Columns Layout - evenly split based on activeColsCount
+                            int colWidth = layoutWidth / activeColsCount;
+
+                            for (int i = 0; i < activeColsCount; i++)
+                            {
+                                var active = activeInCols[i];
+                                int colLeft = layoutLeft + (i * colWidth);
+                                int colW = (i == activeColsCount - 1) ? (layoutWidth - (i * colWidth)) : colWidth;
+
+                                EnsureWindowRestored(active.Handle);
+
+                                int adjustedLeft = colLeft - BorderAdjustmentOffset;
+                                int adjustedWidth = colW + (BorderAdjustmentOffset * 2);
+                                int adjustedHeight = layoutHeight + BorderAdjustmentOffset;
+
+                                NativeMethods.SetWindowPos(active.Handle, IntPtr.Zero, adjustedLeft, layoutTop, adjustedWidth, adjustedHeight, NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_SHOWWINDOW);
+                            }
                         }
 
                         // Hide other windows on this monitor

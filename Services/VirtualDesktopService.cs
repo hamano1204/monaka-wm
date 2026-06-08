@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using monaka_wm;
 
 namespace monaka_wm.Services
 {
@@ -7,6 +8,7 @@ namespace monaka_wm.Services
     {
         public Dictionary<string, IntPtr> ActiveWindowHandles { get; } = new();
         public Dictionary<IntPtr, int> WindowColumns { get; } = new();
+        public Dictionary<string, SplitDirection> MonitorSplitDirections { get; } = new();
     }
 
     public class VirtualDesktopService

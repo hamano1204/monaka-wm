@@ -78,6 +78,9 @@ namespace monaka_wm
             // Listen to virtual desktop switches
             WindowManager.Instance.DesktopChanged += OnDesktopChanged;
 
+            // Listen to SplitDirectionChanged in WindowManager to update layout definitions
+            WindowManager.Instance.SplitDirectionChanged += OnSplitDirectionChanged;
+
             // Initialize NotifyIcon (System Tray) - Only on primary screen to avoid duplicates
             if (_targetScreen.Primary)
             {
@@ -126,6 +129,9 @@ namespace monaka_wm
 
             // Unsubscribe DesktopChanged
             WindowManager.Instance.DesktopChanged -= OnDesktopChanged;
+
+            // Unsubscribe SplitDirectionChanged
+            WindowManager.Instance.SplitDirectionChanged -= OnSplitDirectionChanged;
 
             // Unsubscribe from WindowManager events to prevent memory leaks
             WindowManager.Instance.Windows.CollectionChanged -= Windows_CollectionChanged;
@@ -254,6 +260,14 @@ namespace monaka_wm
             SyncAllSelections();
         }
 
+        private void OnSplitDirectionChanged(string monitorName, SplitDirection dir)
+        {
+            if (monitorName == _targetScreen.DeviceName)
+            {
+                SyncLayoutDefinitions();
+            }
+        }
+
         private void BurgerMenu_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button btn)
@@ -379,7 +393,7 @@ namespace monaka_wm
             if (sender is Button btn && btn.DataContext is WindowItem windowItem)
             {
                 var direction = btn.Content.ToString();
-                if (direction == "◀")
+                if (direction == "◀" || direction == "▲")
                 {
                     WindowManager.Instance.MoveWindowToColumn(windowItem, windowItem.ColumnIndex - 1);
                 }

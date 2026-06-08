@@ -11,10 +11,38 @@ using Application = System.Windows.Application;
 
 namespace monaka_wm
 {
+    public enum SplitDirection
+    {
+        Horizontal,
+        Vertical
+    }
+
     public class WindowManager : DependencyObject
     {
         private static WindowManager? _instance;
         public static WindowManager Instance => _instance ??= new WindowManager();
+
+        private readonly Dictionary<string, SplitDirection> _currentMonitorSplitDirections = new();
+
+        public event Action<string, SplitDirection>? SplitDirectionChanged;
+
+        public SplitDirection GetSplitDirection(string monitorName)
+        {
+            if (string.IsNullOrEmpty(monitorName)) return SplitDirection.Horizontal;
+            if (_currentMonitorSplitDirections.TryGetValue(monitorName, out var dir))
+            {
+                return dir;
+            }
+            return SplitDirection.Horizontal;
+        }
+
+        public void SetSplitDirection(string monitorName, SplitDirection dir)
+        {
+            if (string.IsNullOrEmpty(monitorName)) return;
+            _currentMonitorSplitDirections[monitorName] = dir;
+            SplitDirectionChanged?.Invoke(monitorName, dir);
+            DeferApplyLayout();
+        }
 
         private readonly WindowHookService _hookService;
         private readonly VirtualDesktopService _desktopService;
@@ -53,6 +81,12 @@ namespace monaka_wm
                 if (_desktopService.CurrentDesktopId != Guid.Empty)
                 {
                     _desktopService.SaveState(_desktopService.CurrentDesktopId, _activeWindowsMap, Windows);
+                    var oldState = _desktopService.GetOrCreateState(_desktopService.CurrentDesktopId);
+                    oldState.MonitorSplitDirections.Clear();
+                    foreach (var kvp in _currentMonitorSplitDirections)
+                    {
+                        oldState.MonitorSplitDirections[kvp.Key] = kvp.Value;
+                    }
                 }
 
                 // 2. Update current desktop ID
@@ -66,6 +100,20 @@ namespace monaka_wm
 
                 // 3. Load or create new desktop state
                 var state = _desktopService.GetOrCreateState(newDesktopId);
+
+                // Restore split directions
+                _currentMonitorSplitDirections.Clear();
+                foreach (var kvp in state.MonitorSplitDirections)
+                {
+                    _currentMonitorSplitDirections[kvp.Key] = kvp.Value;
+                }
+
+                // Raise split direction changed for all screens to refresh UI
+                foreach (var screen in System.Windows.Forms.Screen.AllScreens)
+                {
+                    var dir = GetSplitDirection(screen.DeviceName);
+                    SplitDirectionChanged?.Invoke(screen.DeviceName, dir);
+                }
 
                 // 4. Restore ColumnIndex for managed windows on the new desktop
                 foreach (var w in Windows)
@@ -802,7 +850,8 @@ namespace monaka_wm
                 IsTileMode,
                 Windows,
                 _activeWindowsMap,
-                IsWindowOnCurrentDesktop
+                IsWindowOnCurrentDesktop,
+                GetSplitDirection
             );
         }
 

@@ -32,6 +32,20 @@ namespace monaka_wm.ViewModels
             }
         }
 
+        public bool IsVerticalSplit
+        {
+            get => WindowManager.Instance.GetSplitDirection(_screen.DeviceName) == SplitDirection.Vertical;
+            set
+            {
+                var newDir = value ? SplitDirection.Vertical : SplitDirection.Horizontal;
+                if (WindowManager.Instance.GetSplitDirection(_screen.DeviceName) != newDir)
+                {
+                    WindowManager.Instance.SetSplitDirection(_screen.DeviceName, newDir);
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public int ColumnsCount => WindowManager.Instance.ColumnsCount;
 
         // Commands
@@ -92,6 +106,15 @@ namespace monaka_wm.ViewModels
                     OnPropertyChanged(nameof(IsTileMode));
                     RefreshAllViews();
                 });
+
+            WindowManager.Instance.SplitDirectionChanged += (monitorName, dir) =>
+            {
+                if (monitorName == _screen.DeviceName)
+                {
+                    OnPropertyChanged(nameof(IsVerticalSplit));
+                    RefreshAllViews();
+                }
+            };
 
             // ColumnsCount is a DependencyProperty on WindowManager. UI handles layout sync via descriptor.
 

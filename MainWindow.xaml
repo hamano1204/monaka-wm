@@ -106,6 +106,26 @@
             </Setter>
         </Style>
 
+        <!-- Left/Up Arrow Button Style -->
+        <Style x:Key="LeftArrowButtonStyle" TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+            <Setter Property="Content" Value="◀"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.IsVerticalSplit, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="Content" Value="▲"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Right/Down Arrow Button Style -->
+        <Style x:Key="RightArrowButtonStyle" TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+            <Setter Property="Content" Value="▶"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DataContext.IsVerticalSplit, RelativeSource={RelativeSource AncestorType=Window}}" Value="True">
+                    <Setter Property="Content" Value="▼"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+
         <!-- Dark themed ContextMenu Style for Tabs -->
         <Style x:Key="TabContextMenuStyle" TargetType="ContextMenu">
             <Setter Property="Background" Value="#18181B"/>
@@ -245,12 +265,10 @@
                                 
                                 <!-- Arrow Controls -->
                                 <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                    <Button Style="{StaticResource ArrowButtonStyle}" Content="◀" 
-                                            Click="ArrowButton_Click"/>
-                                    <Button Content="▶" 
-                                            Click="ArrowButton_Click">
+                                    <Button Style="{StaticResource LeftArrowButtonStyle}" Click="ArrowButton_Click"/>
+                                    <Button Click="ArrowButton_Click">
                                         <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+                                            <Style TargetType="Button" BasedOn="{StaticResource RightArrowButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="False"/>
                                                 <Style.Triggers>
                                                     <MultiDataTrigger>
@@ -292,10 +310,9 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                    <Button Content="◀" 
-                                            Click="ArrowButton_Click">
+                                    <Button Click="ArrowButton_Click">
                                         <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+                                            <Style TargetType="Button" BasedOn="{StaticResource LeftArrowButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="False"/>
                                                 <Style.Triggers>
                                                     <MultiDataTrigger>
@@ -309,10 +326,9 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Content="▶" 
-                                            Click="ArrowButton_Click">
+                                    <Button Click="ArrowButton_Click">
                                         <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+                                            <Style TargetType="Button" BasedOn="{StaticResource RightArrowButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="False"/>
                                                 <Style.Triggers>
                                                     <MultiDataTrigger>
@@ -354,10 +370,9 @@
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
-                                    <Button Content="◀" 
-                                            Click="ArrowButton_Click">
+                                    <Button Click="ArrowButton_Click">
                                         <Button.Style>
-                                            <Style TargetType="Button" BasedOn="{StaticResource ArrowButtonStyle}">
+                                            <Style TargetType="Button" BasedOn="{StaticResource LeftArrowButtonStyle}">
                                                 <Setter Property="IsEnabled" Value="False"/>
                                                 <Style.Triggers>
                                                     <MultiDataTrigger>
@@ -371,8 +386,7 @@
                                             </Style>
                                         </Button.Style>
                                     </Button>
-                                    <Button Style="{StaticResource ArrowButtonStyle}" Content="▶" 
-                                            Click="ArrowButton_Click" IsEnabled="False"/>
+                                    <Button Style="{StaticResource RightArrowButtonStyle}" Click="ArrowButton_Click" IsEnabled="False"/>
                                 </StackPanel>
                             </StackPanel>
                         </DataTemplate>
@@ -397,10 +411,12 @@
                                IsChecked="{Binding IsTileMode}" 
                                Margin="6,0,0,0" Content="Float/Tile"/>
 
-                <!-- Vertical/Horizontal split mode toggle (Postponed but shown disabled) -->
-                <Button Style="{StaticResource IconButtonStyle}" IsEnabled="False" Margin="8,0" ToolTip="Split Direction (Deferred)">
-                    <TextBlock Text="◤Vert/Horiz" FontSize="11" VerticalAlignment="Center"/>
-                </Button>
+                <!-- Vertical/Horizontal split mode toggle -->
+                <ToggleButton Style="{StaticResource ToggleButtonStyle}" 
+                              IsChecked="{Binding IsVerticalSplit}" 
+                              Margin="8,0" 
+                              Content="Vert/Horiz"
+                              ToolTip="Toggle Split Direction (Horizontal/Vertical)"/>
                 
                 <!-- Visual Divider -->
                 <Border Background="#27272A" Width="1" VerticalAlignment="Stretch" Margin="0,4"/>
