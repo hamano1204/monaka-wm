@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
@@ -6,6 +7,9 @@ namespace monaka_wm
 {
     public class WindowItem : INotifyPropertyChanged
     {
+        // プロセス名ベースのアイコンキャッシュ（同一アプリの重複取得を防止）
+        private static readonly ConcurrentDictionary<string, System.Windows.Media.ImageSource?> _iconCache = new();
+
         private string _title = string.Empty;
         private int _columnIndex = 0;
         private bool _isActiveInColumn = false;
@@ -137,11 +141,20 @@ namespace monaka_wm
 
         public void LoadIconAsync()
         {
+            // キャッシュに既にある場合は即座に適用
+            if (_iconCache.TryGetValue(ProcessName, out var cached))
+            {
+                Icon = cached;
+                return;
+            }
+
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
                 {
                     var img = ExtractWindowIcon(Handle);
+                    // プロセス名でキャッシュ（nullでも記録して再試行を防止）
+                    _iconCache.TryAdd(ProcessName, img);
                     if (img != null)
                     {
                         System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
@@ -159,24 +172,48 @@ namespace monaka_wm
 
         private System.Windows.Media.ImageSource? ExtractWindowIcon(IntPtr hWnd)
         {
+            // --- 高速パス: 実行ファイルから直接アイコン取得（WM_GETICONを使わないので応答待ちなし）---
+            try
+            {
+                NativeMethods.GetWindowThreadProcessId(hWnd, out uint pid);
+                using var proc = System.Diagnostics.Process.GetProcessById((int)pid);
+                string? exePath = proc.MainModule?.FileName;
+                if (!string.IsNullOrEmpty(exePath))
+                {
+                    using var icon = System.Drawing.Icon.ExtractAssociatedIcon(exePath);
+                    if (icon != null)
+                    {
+                        var src = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                            icon.Handle,
+                            System.Windows.Int32Rect.Empty,
+                            System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                        src.Freeze();
+                        return src;
+                    }
+                }
+            }
+            catch { }
+
+            // --- フォールバック: WM_GETICON（タイムアウトを20msに短縮）---
             IntPtr hIcon = IntPtr.Zero;
 
             const uint WM_GETICON = 0x007F;
             const IntPtr ICON_SMALL2 = 2;
             const IntPtr ICON_SMALL = 0;
             const IntPtr ICON_BIG = 1;
+            // SMTO_ABORTIFHUNG | SMTO_NOTIMEOUTIFNOTHUNG: ハングしている場合のみ即abort、正常時は応答まで待つ
             const uint SMTO_ABORTIFHUNG = 0x0002;
 
             IntPtr result;
-            if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out result) != IntPtr.Zero && result != IntPtr.Zero)
+            if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 20, out result) != IntPtr.Zero && result != IntPtr.Zero)
             {
                 hIcon = result;
             }
-            else if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_SMALL, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out result) != IntPtr.Zero && result != IntPtr.Zero)
+            else if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_SMALL, IntPtr.Zero, SMTO_ABORTIFHUNG, 20, out result) != IntPtr.Zero && result != IntPtr.Zero)
             {
                 hIcon = result;
             }
-            else if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_BIG, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out result) != IntPtr.Zero && result != IntPtr.Zero)
+            else if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_BIG, IntPtr.Zero, SMTO_ABORTIFHUNG, 20, out result) != IntPtr.Zero && result != IntPtr.Zero)
             {
                 hIcon = result;
             }
@@ -217,7 +254,7 @@ namespace monaka_wm
                         System.Windows.Int32Rect.Empty,
                         System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
                     
-                    bitmapSource.Freeze(); // Crucial for multi-threaded access
+                    bitmapSource.Freeze();
                     return bitmapSource;
                 }
                 catch
