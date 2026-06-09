@@ -21,8 +21,8 @@ namespace monaka_wm
 
     public class WindowManager : INotifyPropertyChanged
     {
-        private static WindowManager? _instance;
-        public static WindowManager Instance => _instance ??= new WindowManager();
+        private static readonly Lazy<WindowManager> _lazy = new(() => new WindowManager());
+        public static WindowManager Instance => _lazy.Value;
 
         private readonly Dictionary<string, SplitDirection> _currentMonitorSplitDirections = new();
 
@@ -355,13 +355,8 @@ namespace monaka_wm
             if (hWnd == IntPtr.Zero || _taskbarHwnds.Contains(hWnd)) return false;
             if (!NativeMethods.IsWindow(hWnd)) return false;
 
-            StringBuilder title = new StringBuilder(256);
-            NativeMethods.GetWindowText(hWnd, title, title.Capacity);
-            string titleStr = title.ToString();
-
-            StringBuilder className = new StringBuilder(256);
-            NativeMethods.GetClassName(hWnd, className, className.Capacity);
-            string cls = className.ToString();
+            string titleStr = GetWindowTitle(hWnd);
+            string cls = GetWindowClassName(hWnd);
 
             if (!NativeMethods.IsWindowVisible(hWnd)) return false;
 
@@ -435,8 +430,7 @@ namespace monaka_wm
         {
             if (Windows.Any(w => w.Handle == hWnd)) return;
 
-            StringBuilder title = new StringBuilder(256);
-            NativeMethods.GetWindowText(hWnd, title, title.Capacity);
+            string title = GetWindowTitle(hWnd);
 
             NativeMethods.GetWindowThreadProcessId(hWnd, out uint processId);
             string processName = "Unknown";
@@ -448,7 +442,7 @@ namespace monaka_wm
             catch { }
 
             var screen = System.Windows.Forms.Screen.FromHandle(hWnd);
-            var item = new WindowItem(hWnd, title.ToString(), processName)
+            var item = new WindowItem(hWnd, title, processName)
             {
                 ColumnIndex = 0,
                 IsOnCurrentDesktop = IsWindowOnCurrentDesktop(hWnd),
@@ -504,10 +498,22 @@ namespace monaka_wm
             var item = Windows.FirstOrDefault(w => w.Handle == hWnd);
             if (item != null)
             {
-                StringBuilder title = new StringBuilder(256);
-                NativeMethods.GetWindowText(hWnd, title, title.Capacity);
-                item.Title = title.ToString();
+                item.Title = GetWindowTitle(hWnd);
             }
+        }
+
+        private static string GetWindowTitle(IntPtr hWnd)
+        {
+            var sb = new StringBuilder(256);
+            NativeMethods.GetWindowText(hWnd, sb, sb.Capacity);
+            return sb.ToString();
+        }
+
+        private static string GetWindowClassName(IntPtr hWnd)
+        {
+            var sb = new StringBuilder(256);
+            NativeMethods.GetClassName(hWnd, sb, sb.Capacity);
+            return sb.ToString();
         }
 
         private bool _isProcessingWinEvent = false;
@@ -631,7 +637,7 @@ namespace monaka_wm
                     case NativeMethods.EVENT_OBJECT_CLOAKED:
                         OnWindowCloaked(hWnd);
                         break;
-                    case 0x000B: // EVENT_SYSTEM_MOVESIZEEND
+                    case NativeMethods.EVENT_SYSTEM_MOVESIZEEND:
                         OnWindowMovedOrResized(hWnd);
                         break;
                 }
@@ -906,12 +912,9 @@ namespace monaka_wm
                 var monitorWindows = activeWindows.Where(w => w.MonitorName == screen.DeviceName).ToList();
                 int col0Count = monitorWindows.Count(w => w.ColumnIndex == 0);
                 int col1Count = monitorWindows.Count(w => w.ColumnIndex == 1);
-                int col2Count = monitorWindows.Count(w => w.ColumnIndex == 2);
-                int monitorColumnsCount = 1;
-                if (monitorWindows.Count > 0)
-                {
-                    monitorColumnsCount = Math.Max(1, monitorWindows.Max(w => w.ColumnIndex) + 1);
-                }
+                int monitorColumnsCount = monitorWindows.Count > 0
+                    ? Math.Max(1, monitorWindows.Max(w => w.ColumnIndex) + 1)
+                    : 1;
 
                 foreach (var w in monitorWindows)
                 {
@@ -919,31 +922,12 @@ namespace monaka_wm
                     _activeWindowsMap.TryGetValue(key, out var active);
                     w.IsActiveInColumn = w.ColumnIndex >= 0 && w.ColumnIndex < 3 && w == active;
 
-                    if (monitorColumnsCount > 1 && w.ColumnIndex == 0 && col0Count <= 1)
-                    {
-                        w.CanMoveRight = false;
-                    }
-                    else if (monitorColumnsCount == 2 && w.ColumnIndex == 1 && col1Count <= 1)
-                    {
-                        w.CanMoveRight = false;
-                    }
-                    else if (monitorColumnsCount == 3 && w.ColumnIndex == 1 && col1Count <= 1)
-                    {
-                        w.CanMoveRight = false;
-                    }
-                    else
-                    {
-                        w.CanMoveRight = true;
-                    }
+                    // CanMoveRight: 移動元カラムが自分だけになる場合は禁止（ギャップ防止）
+                    w.CanMoveRight = !((monitorColumnsCount > 1 && w.ColumnIndex == 0 && col0Count <= 1) ||
+                                       (w.ColumnIndex == 1 && col1Count <= 1));
 
-                    if (monitorColumnsCount == 3 && w.ColumnIndex == 1 && col1Count <= 1)
-                    {
-                        w.CanMoveLeft = false;
-                    }
-                    else
-                    {
-                        w.CanMoveLeft = true;
-                    }
+                    // CanMoveLeft: 3カラム時に中央カラムが自分だけになる場合は禁止
+                    w.CanMoveLeft = !(monitorColumnsCount == 3 && w.ColumnIndex == 1 && col1Count <= 1);
                 }
             }
         }

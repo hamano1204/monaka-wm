@@ -55,6 +55,7 @@ public static class NativeMethods
     public const uint EVENT_SYSTEM_MINIMIZEEND = 0x0017;
     public const uint EVENT_OBJECT_CLOAKED = 0x8017;
     public const uint EVENT_OBJECT_UNCLOAKED = 0x8018;
+    public const uint EVENT_SYSTEM_MOVESIZEEND = 0x000B;
     
     public const uint WINEVENT_OUTOFCONTEXT = 0;
 

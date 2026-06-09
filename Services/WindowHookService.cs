@@ -69,8 +69,8 @@ namespace monaka_wm.Services
 
             // Hook for window move/size end (to detect monitor crossings)
             _moveSizeHook = NativeMethods.SetWinEventHook(
-                0x000B, // EVENT_SYSTEM_MOVESIZEEND
-                0x000B,
+                NativeMethods.EVENT_SYSTEM_MOVESIZEEND,
+                NativeMethods.EVENT_SYSTEM_MOVESIZEEND,
                 IntPtr.Zero,
                 _winEventProc,
                 0,

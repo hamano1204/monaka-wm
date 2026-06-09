@@ -249,11 +249,6 @@ namespace monaka_wm.Services
         }
 
 
-        private bool IsWindowHidden(WindowItem item, IEnumerable<WindowItem> windows)
-        {
-            return !item.IsActiveInColumn;
-        }
-
         public void ClearCachedPlacement(IntPtr hWnd)
         {
             _originalPlacements.Remove(hWnd);

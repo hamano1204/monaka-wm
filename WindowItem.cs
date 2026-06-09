@@ -17,8 +17,6 @@ namespace monaka_wm
         private bool _isOnCurrentDesktop = true;
         private System.Windows.Media.ImageSource? _icon;
 
-        private bool _canMoveRight = true;
-
         public System.Windows.Media.ImageSource? Icon
         {
             get => _icon;
@@ -103,6 +101,7 @@ namespace monaka_wm
             }
         }
 
+        private bool _canMoveRight = true;
         private bool _canMoveLeft = true;
 
         public bool CanMoveRight
