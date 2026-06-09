@@ -207,6 +207,8 @@ namespace monaka_wm
             }
         }
 
+        private System.Windows.Threading.DispatcherTimer? _desktopPollTimer;
+
         private WindowManager()
         {
             _hookService = new WindowHookService(WinEventCallback);
@@ -231,6 +233,14 @@ namespace monaka_wm
             ScanExistingWindows();
             DeferApplyLayout();
             _hookService.Start();
+
+            // Start desktop polling timer to catch transitions when focus doesn't trigger it
+            _desktopPollTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(500)
+            };
+            _desktopPollTimer.Tick += (s, e) => PollCurrentDesktop();
+            _desktopPollTimer.Start();
         }
 
         public void RegisterTaskbarHwnd(IntPtr hWnd)
@@ -240,11 +250,75 @@ namespace monaka_wm
 
         public void Shutdown()
         {
+            if (_desktopPollTimer != null)
+            {
+                _desktopPollTimer.Stop();
+                _desktopPollTimer = null;
+            }
+
             _hookService.Stop();
             _desktopService.Dispose();
 
             // In Tile mode, restore all windows to normal before exiting
             _layoutEngine.RestoreAllWindows(Windows);
+        }
+
+        private void PollCurrentDesktop()
+        {
+            try
+            {
+                // 1. Check if foreground window is on a different virtual desktop
+                var activeHwnd = NativeMethods.GetForegroundWindow();
+                if (activeHwnd != IntPtr.Zero && !_taskbarHwnds.Contains(activeHwnd))
+                {
+                    Guid desktopId = _desktopService.GetWindowDesktopId(activeHwnd);
+                    if (desktopId != Guid.Empty && desktopId != _desktopService.CurrentDesktopId)
+                    {
+                        SwitchToDesktop(desktopId);
+                        return;
+                    }
+                }
+
+                // 2. Fallback: If foreground is shell/empty desktop, check if our taskbars are on a hidden desktop
+                foreach (var hwnd in _taskbarHwnds)
+                {
+                    if (NativeMethods.IsWindow(hwnd) && !_desktopService.IsWindowOnCurrentDesktop(hwnd))
+                    {
+                        Guid newDesktopId = FindCurrentVirtualDesktopId();
+                        if (newDesktopId != Guid.Empty && newDesktopId != _desktopService.CurrentDesktopId)
+                        {
+                            SwitchToDesktop(newDesktopId);
+                            return;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Error in PollCurrentDesktop: {ex.Message}");
+            }
+        }
+
+        private Guid FindCurrentVirtualDesktopId()
+        {
+            Guid foundId = Guid.Empty;
+            NativeMethods.EnumWindows((hWnd, lParam) =>
+            {
+                if (NativeMethods.IsWindowVisible(hWnd) && !_taskbarHwnds.Contains(hWnd))
+                {
+                    if (_desktopService.IsWindowOnCurrentDesktop(hWnd))
+                    {
+                        Guid id = _desktopService.GetWindowDesktopId(hWnd);
+                        if (id != Guid.Empty)
+                        {
+                            foundId = id;
+                            return false; // Stop enumeration
+                        }
+                    }
+                }
+                return true;
+            }, IntPtr.Zero);
+            return foundId;
         }
 
         private void ScanExistingWindows()
@@ -484,14 +558,17 @@ namespace monaka_wm
                 IntPtr rootHWnd = NativeMethods.GetAncestor(hWnd, NativeMethods.GA_ROOT);
                 if (rootHWnd == IntPtr.Zero) rootHWnd = hWnd;
 
+                if (!_taskbarHwnds.Contains(rootHWnd) && rootHWnd != IntPtr.Zero)
+                {
+                    Guid desktopId = _desktopService.GetWindowDesktopId(rootHWnd);
+                    if (desktopId != Guid.Empty && desktopId != _desktopService.CurrentDesktopId)
+                    {
+                        SwitchToDesktop(desktopId);
+                    }
+                }
+
                 if (_taskbarHwnds.Contains(rootHWnd) || rootHWnd == _lastProcessedForegroundHwnd) return;
                 _lastProcessedForegroundHwnd = rootHWnd;
-
-                Guid desktopId = _desktopService.GetWindowDesktopId(rootHWnd);
-                if (desktopId != Guid.Empty && desktopId != _desktopService.CurrentDesktopId)
-                {
-                    SwitchToDesktop(desktopId);
-                }
 
                 _pendingForegroundEvents++;
                 IntPtr capturedHWnd = rootHWnd;
@@ -653,6 +730,16 @@ namespace monaka_wm
             {
                 IntPtr uncloakRoot = NativeMethods.GetAncestor(hWnd, NativeMethods.GA_ROOT);
                 if (uncloakRoot == IntPtr.Zero) uncloakRoot = hWnd;
+
+                if (!_taskbarHwnds.Contains(uncloakRoot) && uncloakRoot != IntPtr.Zero)
+                {
+                    Guid desktopId = _desktopService.GetWindowDesktopId(uncloakRoot);
+                    if (desktopId != Guid.Empty && desktopId != _desktopService.CurrentDesktopId)
+                    {
+                        SwitchToDesktop(desktopId);
+                    }
+                }
+
                 if (!Windows.Any(w => w.Handle == uncloakRoot) && ShouldManageWindow(uncloakRoot))
                 {
                     AddWindow(uncloakRoot);

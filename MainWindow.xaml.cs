@@ -43,19 +43,9 @@ namespace monaka_wm
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            // Position at top of the target screen
-            var presentationSource = PresentationSource.FromVisual(this);
-            double dpiScaleX = 1.0;
-            double dpiScaleY = 1.0;
-            if (presentationSource?.CompositionTarget != null)
-            {
-                dpiScaleX = presentationSource.CompositionTarget.TransformToDevice.M11;
-                dpiScaleY = presentationSource.CompositionTarget.TransformToDevice.M22;
-            }
+            // Position at top of the target screen using WorkingArea
+            UpdateWindowPosition();
 
-            this.Left = _targetScreen.Bounds.Left / dpiScaleX;
-            this.Top = _targetScreen.Bounds.Top / dpiScaleY;
-            this.Width = _targetScreen.Bounds.Width / dpiScaleX;
             if (WindowManager.Instance.IsPinned)
             {
                 this.Height = WindowManager.TASKBAR_HEIGHT;
@@ -71,6 +61,10 @@ namespace monaka_wm
             var hwnd = new WindowInteropHelper(this).Handle;
             int exStyle = (int)NativeMethods.GetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE);
             NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(exStyle | (int)NativeMethods.WS_EX_NOACTIVATE | (int)NativeMethods.WS_EX_TOOLWINDOW));
+
+            // Register HwndSource hook to listen to resolution or taskbar setting changes
+            var hwndSource = HwndSource.FromHwnd(hwnd);
+            hwndSource?.AddHook(WndProc);
 
             // Initialize ViewModel and set DataContext, filtering for this screen
             _viewModel = new MainViewModel(_targetScreen);
@@ -186,6 +180,11 @@ namespace monaka_wm
                 w.PropertyChanged -= WindowItem_PropertyChanged;
             }
 
+            // Unsubscribe WndProc hook
+            var hwnd = new WindowInteropHelper(this).Handle;
+            var hwndSource = HwndSource.FromHwnd(hwnd);
+            hwndSource?.RemoveHook(WndProc);
+
             // Dispose NotifyIcon
             if (_notifyIcon != null)
             {
@@ -193,6 +192,36 @@ namespace monaka_wm
                 _notifyIcon.Dispose();
                 _notifyIcon = null;
             }
+        }
+
+        private void UpdateWindowPosition()
+        {
+            var presentationSource = PresentationSource.FromVisual(this);
+            double dpiScaleX = 1.0;
+            double dpiScaleY = 1.0;
+            if (presentationSource?.CompositionTarget != null)
+            {
+                dpiScaleX = presentationSource.CompositionTarget.TransformToDevice.M11;
+                dpiScaleY = presentationSource.CompositionTarget.TransformToDevice.M22;
+            }
+
+            var freshScreen = System.Windows.Forms.Screen.AllScreens.FirstOrDefault(s => s.DeviceName == _targetScreen.DeviceName) ?? _targetScreen;
+
+            this.Left = freshScreen.WorkingArea.Left / dpiScaleX;
+            this.Top = freshScreen.WorkingArea.Top / dpiScaleY;
+            this.Width = freshScreen.WorkingArea.Width / dpiScaleX;
+        }
+
+        private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+        {
+            const int WM_SETTINGCHANGE = 0x001A;
+            const int WM_DISPLAYCHANGE = 0x007E;
+            if (msg == WM_SETTINGCHANGE || msg == WM_DISPLAYCHANGE)
+            {
+                UpdateWindowPosition();
+                WindowManager.Instance.DeferApplyLayout(); // Recalculate tiled window bounds if WorkingArea changed
+            }
+            return IntPtr.Zero;
         }
 
         private void Window_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
