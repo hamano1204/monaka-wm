@@ -11,8 +11,22 @@ namespace monaka_wm
         private bool _isActiveInColumn = false;
         private string _monitorName = string.Empty;
         private bool _isOnCurrentDesktop = true;
+        private System.Windows.Media.ImageSource? _icon;
 
         private bool _canMoveRight = true;
+
+        public System.Windows.Media.ImageSource? Icon
+        {
+            get => _icon;
+            set
+            {
+                if (_icon != value)
+                {
+                    _icon = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public string MonitorName
         {
@@ -118,6 +132,123 @@ namespace monaka_wm
             Handle = handle;
             Title = title;
             ProcessName = processName;
+            LoadIconAsync();
+        }
+
+        public void LoadIconAsync()
+        {
+            System.Threading.Tasks.Task.Run(() =>
+            {
+                try
+                {
+                    var img = ExtractWindowIcon(Handle);
+                    if (img != null)
+                    {
+                        System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                        {
+                            Icon = img;
+                        }));
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"Error loading icon: {ex.Message}");
+                }
+            });
+        }
+
+        private System.Windows.Media.ImageSource? ExtractWindowIcon(IntPtr hWnd)
+        {
+            IntPtr hIcon = IntPtr.Zero;
+
+            const uint WM_GETICON = 0x007F;
+            const IntPtr ICON_SMALL2 = 2;
+            const IntPtr ICON_SMALL = 0;
+            const IntPtr ICON_BIG = 1;
+            const uint SMTO_ABORTIFHUNG = 0x0002;
+
+            IntPtr result;
+            if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out result) != IntPtr.Zero && result != IntPtr.Zero)
+            {
+                hIcon = result;
+            }
+            else if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_SMALL, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out result) != IntPtr.Zero && result != IntPtr.Zero)
+            {
+                hIcon = result;
+            }
+            else if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_BIG, IntPtr.Zero, SMTO_ABORTIFHUNG, 100, out result) != IntPtr.Zero && result != IntPtr.Zero)
+            {
+                hIcon = result;
+            }
+
+            if (hIcon == IntPtr.Zero)
+            {
+                const int GCLP_HICONSM = -34;
+                const int GCLP_HICON = -14;
+                
+                try
+                {
+                    if (IntPtr.Size == 8)
+                    {
+                        hIcon = NativeMethods.GetClassLongPtr64(hWnd, GCLP_HICONSM);
+                        if (hIcon == IntPtr.Zero)
+                        {
+                            hIcon = NativeMethods.GetClassLongPtr64(hWnd, GCLP_HICON);
+                        }
+                    }
+                    else
+                    {
+                        hIcon = new IntPtr(NativeMethods.GetClassLong32(hWnd, GCLP_HICONSM));
+                        if (hIcon == IntPtr.Zero)
+                        {
+                            hIcon = new IntPtr(NativeMethods.GetClassLong32(hWnd, GCLP_HICON));
+                        }
+                    }
+                }
+                catch { }
+            }
+
+            if (hIcon != IntPtr.Zero)
+            {
+                try
+                {
+                    var bitmapSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                        hIcon,
+                        System.Windows.Int32Rect.Empty,
+                        System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                    
+                    bitmapSource.Freeze(); // Crucial for multi-threaded access
+                    return bitmapSource;
+                }
+                catch
+                {
+                    return GetFallbackIcon();
+                }
+                finally
+                {
+                    NativeMethods.DestroyIcon(hIcon);
+                }
+            }
+
+            return GetFallbackIcon();
+        }
+
+        private System.Windows.Media.ImageSource? GetFallbackIcon()
+        {
+            try
+            {
+                var systemIcon = System.Drawing.SystemIcons.Application;
+                var bitmapSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHIcon(
+                    systemIcon.Handle,
+                    System.Windows.Int32Rect.Empty,
+                    System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                bitmapSource.Freeze();
+                return bitmapSource;
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public event PropertyChangedEventHandler? PropertyChanged;

@@ -46,6 +46,19 @@ namespace monaka_wm.ViewModels
             }
         }
 
+        public bool IsPinned
+        {
+            get => WindowManager.Instance.IsPinned;
+            set
+            {
+                if (WindowManager.Instance.IsPinned != value)
+                {
+                    WindowManager.Instance.IsPinned = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public int ColumnsCount => WindowManager.Instance.ColumnsCount;
 
         // Commands
@@ -111,6 +124,10 @@ namespace monaka_wm.ViewModels
                 {
                     OnPropertyChanged(nameof(ColumnsCount));
                     RefreshAllViews();
+                }
+                else if (e.PropertyName == nameof(WindowManager.IsPinned))
+                {
+                    OnPropertyChanged(nameof(IsPinned));
                 }
             };
 

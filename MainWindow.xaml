@@ -80,6 +80,35 @@
             </Setter>
         </Style>
 
+        <!-- Pin Toggle Button Style -->
+        <Style x:Key="PinToggleButtonStyle" TargetType="ToggleButton">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Foreground" Value="#A1A1AA"/>
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ToggleButton">
+                        <Border Background="{TemplateBinding Background}" CornerRadius="4" Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="#27272A"/>
+                                <Setter Property="Foreground" Value="#F4F4F5"/>
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter Property="Foreground" Value="#0EA5E9"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- Small Arrow Buttons Style inside Tab -->
         <Style x:Key="ArrowButtonStyle" TargetType="Button">
             <Setter Property="Background" Value="Transparent"/>
@@ -262,7 +291,8 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                <!-- Process Icon Placeholder or Title -->
+                                <!-- Process Icon -->
+                                <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality"/>
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
                                 
                                 <!-- Arrow Controls -->
@@ -313,6 +343,7 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality"/>
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
                                     <Button Command="{Binding DataContext.MoveLeftCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
@@ -375,6 +406,7 @@
                     <ListBox.ItemTemplate>
                         <DataTemplate>
                             <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <Image Source="{Binding Icon}" Width="16" Height="16" Margin="0,0,6,0" VerticalAlignment="Center" SnapsToDevicePixels="True" RenderOptions.BitmapScalingMode="HighQuality"/>
                                 <TextBlock Text="{Binding Title}" VerticalAlignment="Center" Margin="0,0,10,0" MaxWidth="150" TextTrimming="CharacterEllipsis"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,2,0">
                                     <Button Command="{Binding DataContext.MoveLeftCommand, RelativeSource={RelativeSource AncestorType=Window}}" 
@@ -443,6 +475,13 @@
                         Margin="0,0,4,0">
                     <TextBlock Text="[End Split]" Foreground="#EF4444" FontWeight="SemiBold" VerticalAlignment="Center"/>
                 </Button>
+                <!-- Pin Toggle Button -->
+                <ToggleButton Style="{StaticResource PinToggleButtonStyle}"
+                              IsChecked="{Binding IsPinned}"
+                              ToolTip="Pin tab bar (Always show)"
+                              Margin="4,0,0,0">
+                    <TextBlock Text="📌" FontSize="14" VerticalAlignment="Center"/>
+                </ToggleButton>
             </StackPanel>
         </Grid>
     </Grid>

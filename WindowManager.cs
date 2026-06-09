@@ -178,6 +178,21 @@ namespace monaka_wm
             }
         }
 
+        private bool _isPinned = true;
+        public bool IsPinned
+        {
+            get => _isPinned;
+            set
+            {
+                if (_isPinned != value)
+                {
+                    _isPinned = value;
+                    OnPropertyChanged();
+                    DeferApplyLayout();
+                }
+            }
+        }
+
         private int _columnsCount = 1;
         public int ColumnsCount
         {

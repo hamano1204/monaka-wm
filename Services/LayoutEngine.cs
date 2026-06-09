@@ -61,6 +61,14 @@ namespace monaka_wm.Services
                     int layoutWidth = screen.WorkingArea.Width;
                     int layoutHeight = screen.WorkingArea.Height;
 
+                    if (WindowManager.Instance.IsPinned)
+                    {
+                        var (_, scaleY) = GetDpiScale();
+                        int barHeightPhysical = (int)Math.Round(WindowManager.TASKBAR_HEIGHT * scaleY);
+                        layoutTop += barHeightPhysical;
+                        layoutHeight -= barHeightPhysical;
+                    }
+
                     // Determine active windows for each column on this screen
                     var activeInCols = new List<WindowItem>();
                     for (int i = 0; i < 3; i++) // We support up to 3 columns

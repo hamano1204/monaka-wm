@@ -245,6 +245,19 @@ public static class NativeMethods
     [DllImport("user32.dll", SetLastError = true)]
     public static extern bool UnregisterHotKey(IntPtr hWnd, int id);
 
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DestroyIcon(IntPtr hIcon);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassLongW")]
+    public static extern uint GetClassLong32(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "GetClassLongPtrW")]
+    public static extern IntPtr GetClassLongPtr64(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+    public static extern IntPtr SendMessageTimeout(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam, uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
+
     public const int WM_HOTKEY = 0x0312;
     public const uint MOD_ALT = 0x0001;
     public const uint MOD_CONTROL = 0x0002;

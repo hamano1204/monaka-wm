@@ -22,6 +22,7 @@ namespace monaka_wm
         private bool _isSyncingSelection = false;
         private readonly System.Windows.Forms.Screen _targetScreen;
         private System.Windows.Threading.DispatcherTimer? _hoverTimer;
+        private System.Windows.Threading.DispatcherTimer? _leaveTimer;
         private Services.HotkeyService? _hotkeyService;
 
         public MainWindow() : this(System.Windows.Forms.Screen.PrimaryScreen!)
@@ -55,7 +56,15 @@ namespace monaka_wm
             this.Left = _targetScreen.Bounds.Left / dpiScaleX;
             this.Top = _targetScreen.Bounds.Top / dpiScaleY;
             this.Width = _targetScreen.Bounds.Width / dpiScaleX;
-            this.Height = CollapsedHeight; // Start collapsed
+            if (WindowManager.Instance.IsPinned)
+            {
+                this.Height = WindowManager.TASKBAR_HEIGHT;
+                MainContentGrid.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                this.Height = CollapsedHeight; // Start collapsed
+            }
 
             // Apply WS_EX_NOACTIVATE so clicking tabs doesn't steal window focus,
             // and WS_EX_TOOLWINDOW to hide it from the Alt+Tab window switcher.
@@ -147,6 +156,12 @@ namespace monaka_wm
                 _hoverTimer = null;
             }
 
+            if (_leaveTimer != null)
+            {
+                _leaveTimer.Stop();
+                _leaveTimer = null;
+            }
+
             // Remove WindowManager property listener
             WindowManager.Instance.PropertyChanged -= OnWindowManagerPropertyChanged;
 
@@ -182,9 +197,16 @@ namespace monaka_wm
 
         private void Window_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
         {
+            if (WindowManager.Instance.IsPinned) return;
+
             if (_hoverTimer != null)
             {
                 _hoverTimer.Stop();
+            }
+
+            if (_leaveTimer != null)
+            {
+                _leaveTimer.Stop();
             }
 
             _hoverTimer = new System.Windows.Threading.DispatcherTimer
@@ -201,12 +223,29 @@ namespace monaka_wm
 
         private void Window_MouseLeave(object sender, System.Windows.Input.MouseEventArgs e)
         {
+            if (WindowManager.Instance.IsPinned) return;
+
             if (_hoverTimer != null)
             {
                 _hoverTimer.Stop();
             }
 
-            CollapseWindow();
+            if (_leaveTimer != null)
+            {
+                _leaveTimer.Stop();
+            }
+
+            // マウスが離れてから1.0秒間待機してから畳む
+            _leaveTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(1000)
+            };
+            _leaveTimer.Tick += (s, ev) =>
+            {
+                _leaveTimer.Stop();
+                CollapseWindow();
+            };
+            _leaveTimer.Start();
         }
 
         private void ExpandWindow()
@@ -327,6 +366,20 @@ namespace monaka_wm
             if (e.PropertyName == nameof(WindowManager.IsTileMode))
             {
                 SyncLayoutDefinitions();
+            }
+            else if (e.PropertyName == nameof(WindowManager.IsPinned))
+            {
+                if (WindowManager.Instance.IsPinned)
+                {
+                    ExpandWindow();
+                }
+                else
+                {
+                    if (!this.IsMouseOver)
+                    {
+                        CollapseWindow();
+                    }
+                }
             }
         }
 

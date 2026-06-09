@@ -20,7 +20,7 @@ namespace monaka_wm
             _mutex = new Mutex(true, MutexName, out bool createdNew);
             if (!createdNew)
             {
-                MessageBox.Show(
+                System.Windows.MessageBox.Show(
                     "monaka-wm はすでに起動しています。\nmonaka-wm is already running.",
                     "monaka-wm",
                     MessageBoxButton.OK,
