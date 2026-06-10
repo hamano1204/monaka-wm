@@ -197,10 +197,10 @@ namespace monaka_wm.Services
 
         public void HideWindow(IntPtr hWnd)
         {
-            // Move off-screen but preserve the window's original size (SWP_NOSIZE).
-            // Shrinking to 100x100 corrupts the window's remembered dimensions.
-            NativeMethods.SetWindowPos(hWnd, IntPtr.Zero, -32000, -32000, 0, 0,
-                NativeMethods.SWP_NOACTIVATE | NativeMethods.SWP_NOZORDER | NativeMethods.SWP_NOSIZE);
+            // Avoid moving windows off-screen. Minimize them instead so their original
+            // desktop positions are preserved and they do not leave the visible display area.
+            WindowManager.Instance.MarkWindowIntentionallyMinimized(hWnd);
+            NativeMethods.ShowWindow(hWnd, NativeMethods.SW_SHOWMINIMIZED);
         }
 
         public void RestoreAllWindows(IEnumerable<WindowItem> windows)

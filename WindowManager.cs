@@ -59,8 +59,21 @@ namespace monaka_wm
         private bool _isLayoutPending = false;
 
         private readonly Dictionary<string, WindowItem?> _activeWindowsMap = new();
+        private readonly HashSet<IntPtr> _intentionallyMinimizedWindows = new();
 
         public bool IsInitialized { get; private set; }
+
+        public void MarkWindowIntentionallyMinimized(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return;
+            _intentionallyMinimizedWindows.Add(hWnd);
+        }
+
+        public void UnmarkWindowIntentionallyMinimized(IntPtr hWnd)
+        {
+            if (hWnd == IntPtr.Zero) return;
+            _intentionallyMinimizedWindows.Remove(hWnd);
+        }
 
         public event EventHandler? DesktopChanged
         {
@@ -458,6 +471,7 @@ namespace monaka_wm
 
         private void RemoveWindow(IntPtr hWnd)
         {
+            _intentionallyMinimizedWindows.Remove(hWnd);
             var item = Windows.FirstOrDefault(w => w.Handle == hWnd);
             if (item != null)
             {
@@ -706,6 +720,12 @@ namespace monaka_wm
         {
             try
             {
+                if (_intentionallyMinimizedWindows.Contains(hWnd))
+                {
+                    // Keep intentionally hidden windows in the tab list.
+                    return;
+                }
+
                 RemoveWindow(hWnd);
             }
             catch (Exception ex)
@@ -718,6 +738,7 @@ namespace monaka_wm
         {
             try
             {
+                UnmarkWindowIntentionallyMinimized(hWnd);
                 if (!Windows.Any(w => w.Handle == hWnd) && ShouldManageWindow(hWnd))
                 {
                     AddWindow(hWnd);
