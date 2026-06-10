@@ -135,6 +135,7 @@ namespace monaka_wm
             Handle = handle;
             Title = title;
             ProcessName = processName;
+            Icon = GetFallbackIcon();
             LoadIconAsync();
         }
 
@@ -147,20 +148,19 @@ namespace monaka_wm
                 return;
             }
 
+            // まずはプレースホルダーを表示し、バックグラウンドで実際のアイコンを取得する
+            Icon = GetFallbackIcon();
+
             System.Threading.Tasks.Task.Run(() =>
             {
                 try
                 {
-                    var img = ExtractWindowIcon(Handle);
-                    // プロセス名でキャッシュ（nullでも記録して再試行を防止）
+                    var img = ExtractWindowIcon(Handle) ?? GetFallbackIcon();
                     _iconCache.TryAdd(ProcessName, img);
-                    if (img != null)
+                    System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                     {
-                        System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
-                        {
-                            Icon = img;
-                        }));
-                    }
+                        Icon = img;
+                    }));
                 }
                 catch (Exception ex)
                 {
