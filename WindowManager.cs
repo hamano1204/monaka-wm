@@ -280,7 +280,7 @@ namespace monaka_wm
         {
             try
             {
-                // 1. Check if foreground window is on a different virtual desktop
+                // 1. Check if the foreground window moved to a different virtual desktop.
                 var activeHwnd = NativeMethods.GetForegroundWindow();
                 if (activeHwnd != IntPtr.Zero && !_taskbarHwnds.Contains(activeHwnd))
                 {
@@ -292,18 +292,11 @@ namespace monaka_wm
                     }
                 }
 
-                // 2. Fallback: If foreground is shell/empty desktop, check if our taskbars are on a hidden desktop
-                foreach (var hwnd in _taskbarHwnds)
+                // 2. If the foreground window is not usable, detect the current desktop from any top-level window.
+                Guid currentDesktopId = FindCurrentVirtualDesktopId();
+                if (currentDesktopId != Guid.Empty && currentDesktopId != _desktopService.CurrentDesktopId)
                 {
-                    if (NativeMethods.IsWindow(hwnd) && !_desktopService.IsWindowOnCurrentDesktop(hwnd))
-                    {
-                        Guid newDesktopId = FindCurrentVirtualDesktopId();
-                        if (newDesktopId != Guid.Empty && newDesktopId != _desktopService.CurrentDesktopId)
-                        {
-                            SwitchToDesktop(newDesktopId);
-                            return;
-                        }
-                    }
+                    SwitchToDesktop(currentDesktopId);
                 }
             }
             catch (Exception ex)
@@ -317,7 +310,7 @@ namespace monaka_wm
             Guid foundId = Guid.Empty;
             NativeMethods.EnumWindows((hWnd, lParam) =>
             {
-                if (NativeMethods.IsWindowVisible(hWnd) && !_taskbarHwnds.Contains(hWnd))
+                if (!_taskbarHwnds.Contains(hWnd) && NativeMethods.IsWindow(hWnd))
                 {
                     if (_desktopService.IsWindowOnCurrentDesktop(hWnd))
                     {
@@ -335,25 +328,41 @@ namespace monaka_wm
         }
 
         private void ScanExistingWindows()
-        {
+        {            var existingLookup = Windows.ToDictionary(w => w.Handle);
+            var seenHandles = new HashSet<IntPtr>();
+
             NativeMethods.EnumWindows((hWnd, lParam) =>
             {
-                if (ShouldManageWindow(hWnd))
+                if (existingLookup.TryGetValue(hWnd, out var existing))
                 {
-                    var existing = Windows.FirstOrDefault(w => w.Handle == hWnd);
-                    if (existing == null)
+                    existing.IsOnCurrentDesktop = IsWindowOnCurrentDesktop(hWnd);
+                    if (existing.IsOnCurrentDesktop)
                     {
-                        AddWindow(hWnd);
-                    }
-                    else
-                    {
-                        existing.IsOnCurrentDesktop = IsWindowOnCurrentDesktop(hWnd);
                         var screen = System.Windows.Forms.Screen.FromHandle(hWnd);
                         existing.MonitorName = screen.DeviceName;
                     }
                 }
+
+                if (ShouldManageWindow(hWnd))
+                {
+                    seenHandles.Add(hWnd);
+
+                    if (existing == null)
+                    {
+                        AddWindow(hWnd);
+                    }
+                }
+
                 return true;
             }, IntPtr.Zero);
+
+            foreach (var window in Windows)
+            {
+                if (!seenHandles.Contains(window.Handle))
+                {
+                    window.IsOnCurrentDesktop = IsWindowOnCurrentDesktop(window.Handle);
+                }
+            }
 
             // Remove windows that no longer exist in the OS (closed)
             var toRemove = Windows.Where(w => !NativeMethods.IsWindow(w.Handle)).ToList();
