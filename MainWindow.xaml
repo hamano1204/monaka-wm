@@ -443,7 +443,7 @@
                 <Button Style="{StaticResource IconButtonStyle}" ToolTip="Menu" Click="BurgerMenu_Click">
                     <Button.ContextMenu>
                         <ContextMenu Background="#18181B" Foreground="#F4F4F5" BorderBrush="#27272A">
-                            <MenuItem Header="本アプリの終了" Click="ExitMenu_Click" Background="Transparent" Foreground="#F4F4F5"/>
+                            <MenuItem Header="Exit Monaka-WM" Click="ExitMenu_Click" Background="Transparent" Foreground="#F4F4F5"/>
                         </ContextMenu>
                     </Button.ContextMenu>
                     <TextBlock Text="≡" FontSize="18" VerticalAlignment="Center" Margin="0,-2,0,0"/>
