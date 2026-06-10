@@ -2,6 +2,7 @@ using System;
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 
 namespace monaka_wm
 {
@@ -141,8 +142,10 @@ namespace monaka_wm
 
         public void LoadIconAsync()
         {
+            string cacheKey = GetIconCacheKey();
+
             // キャッシュに既にある場合は即座に適用
-            if (_iconCache.TryGetValue(ProcessName, out var cached))
+            if (_iconCache.TryGetValue(cacheKey, out var cached))
             {
                 Icon = cached;
                 return;
@@ -156,7 +159,7 @@ namespace monaka_wm
                 try
                 {
                     var img = ExtractWindowIcon(Handle) ?? GetFallbackIcon();
-                    _iconCache.TryAdd(ProcessName, img);
+                    _iconCache.TryAdd(cacheKey, img);
                     System.Windows.Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                     {
                         Icon = img;
@@ -169,9 +172,31 @@ namespace monaka_wm
             });
         }
 
+        private string GetIconCacheKey()
+        {
+            return $"{ProcessName}:{Handle.ToInt64()}";
+        }
+
         private System.Windows.Media.ImageSource? ExtractWindowIcon(IntPtr hWnd)
         {
-            // --- 高速パス: 実行ファイルから直接アイコン取得（WM_GETICONを使わないので応答待ちなし）---
+            var windowIcon = GetWindowIcon(hWnd);
+            if (windowIcon != null)
+            {
+                return windowIcon;
+            }
+
+            var childIcon = GetWindowIconFromChildWindows(hWnd);
+            if (childIcon != null)
+            {
+                return childIcon;
+            }
+
+            var shellIcon = GetShellAppIcon(hWnd);
+            if (shellIcon != null)
+            {
+                return shellIcon;
+            }
+
             try
             {
                 NativeMethods.GetWindowThreadProcessId(hWnd, out uint pid);
@@ -193,18 +218,20 @@ namespace monaka_wm
             }
             catch { }
 
-            // --- フォールバック: WM_GETICON（タイムアウトを20msに短縮）---
+            return null;
+        }
+
+        private System.Windows.Media.ImageSource? GetWindowIcon(IntPtr hWnd)
+        {
             IntPtr hIcon = IntPtr.Zero;
 
             const uint WM_GETICON = 0x007F;
-            const IntPtr ICON_SMALL2 = 2;
-            const IntPtr ICON_SMALL = 0;
-            const IntPtr ICON_BIG = 1;
-            // SMTO_ABORTIFHUNG | SMTO_NOTIMEOUTIFNOTHUNG: ハングしている場合のみ即abort、正常時は応答まで待つ
+            var ICON_SMALL2 = new IntPtr(2);
+            var ICON_SMALL = new IntPtr(0);
+            var ICON_BIG = new IntPtr(1);
             const uint SMTO_ABORTIFHUNG = 0x0002;
 
-            IntPtr result;
-            if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 20, out result) != IntPtr.Zero && result != IntPtr.Zero)
+            if (NativeMethods.SendMessageTimeout(hWnd, WM_GETICON, ICON_SMALL2, IntPtr.Zero, SMTO_ABORTIFHUNG, 20, out var result) != IntPtr.Zero && result != IntPtr.Zero)
             {
                 hIcon = result;
             }
@@ -221,7 +248,7 @@ namespace monaka_wm
             {
                 const int GCLP_HICONSM = -34;
                 const int GCLP_HICON = -14;
-                
+
                 try
                 {
                     if (IntPtr.Size == 8)
@@ -252,22 +279,142 @@ namespace monaka_wm
                         hIcon,
                         System.Windows.Int32Rect.Empty,
                         System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
-                    
                     bitmapSource.Freeze();
                     return bitmapSource;
                 }
                 catch
                 {
-                    return GetFallbackIcon();
-                }
-                finally
-                {
-                    NativeMethods.DestroyIcon(hIcon);
+                    return null;
                 }
             }
 
-            return GetFallbackIcon();
+            return null;
         }
+
+        private System.Windows.Media.ImageSource? GetWindowIconFromChildWindows(IntPtr hWnd)
+        {
+            System.Windows.Media.ImageSource? result = null;
+            NativeMethods.EnumChildWindows(hWnd, (child, lparam) =>
+            {
+                if (GetWindowIcon(child) is { } icon)
+                {
+                    result = icon;
+                    return false;
+                }
+
+                if (GetWindowIconFromChildWindows(child) is { } nestedIcon)
+                {
+                    result = nestedIcon;
+                    return false;
+                }
+
+                return true;
+            }, IntPtr.Zero);
+            return result;
+        }
+
+        private System.Windows.Media.ImageSource? GetShellAppIcon(IntPtr hWnd)
+        {
+            string? appId = GetWindowAppUserModelID(hWnd);
+            if (string.IsNullOrEmpty(appId))
+            {
+                return null;
+            }
+
+            string parsingName = $"shell:AppsFolder\\{appId}";
+            var iid = new Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b");
+            if (NativeMethods.SHCreateItemFromParsingName(parsingName, IntPtr.Zero, ref iid, out IntPtr imageFactoryPtr) != 0)
+            {
+                return null;
+            }
+
+            IShellItemImageFactory? imageFactory = null;
+            try
+            {
+                imageFactory = (IShellItemImageFactory)Marshal.GetObjectForIUnknown(imageFactoryPtr);
+                var size = new NativeMethods.SIZE { cx = 32, cy = 32 };
+                if (imageFactory.GetImage(size, NativeMethods.SIIGBF.RESIZETOFIT, out IntPtr hBitmap) == 0 && hBitmap != IntPtr.Zero)
+                {
+                    var bitmapSource = System.Windows.Interop.Imaging.CreateBitmapSourceFromHBitmap(
+                        hBitmap,
+                        IntPtr.Zero,
+                        System.Windows.Int32Rect.Empty,
+                        System.Windows.Media.Imaging.BitmapSizeOptions.FromEmptyOptions());
+                    bitmapSource.Freeze();
+                    NativeMethods.DeleteObject(hBitmap);
+                    return bitmapSource;
+                }
+            }
+            catch
+            {
+                return null;
+            }
+            finally
+            {
+                if (imageFactory != null)
+                {
+                    Marshal.ReleaseComObject(imageFactory);
+                }
+            }
+
+            return null;
+        }
+
+        private string? GetWindowAppUserModelID(IntPtr hWnd)
+        {
+            var appId = GetWindowAppModelIDFromWindow(hWnd);
+            if (!string.IsNullOrEmpty(appId))
+            {
+                return appId;
+            }
+
+            string? childAppId = null;
+            NativeMethods.EnumChildWindows(hWnd, (child, lparam) =>
+            {
+                childAppId = GetWindowAppModelIDFromWindow(child);
+                return string.IsNullOrEmpty(childAppId);
+            }, IntPtr.Zero);
+            return childAppId;
+        }
+
+        private string? GetWindowAppModelIDFromWindow(IntPtr hWnd)
+        {
+            var iid = new Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99");
+            if (NativeMethods.SHGetPropertyStoreForWindow(hWnd, ref iid, out NativeMethods.IPropertyStore propertyStore) != 0)
+            {
+                return null;
+            }
+
+            NativeMethods.PropVariant propVar = new();
+            try
+            {
+                var propertyKey = NativeMethods.PKEY_AppUserModel_ID;
+                if (propertyStore.GetValue(ref propertyKey, out propVar) == 0 && propVar.vt == (ushort)VarEnum.VT_LPWSTR)
+                {
+                    string? value = Marshal.PtrToStringUni(propVar.p);
+                    return value;
+                }
+            }
+            catch
+            {
+            }
+            finally
+            {
+                NativeMethods.PropVariantClear(ref propVar);
+                Marshal.ReleaseComObject(propertyStore);
+            }
+
+            return null;
+        }
+
+        [ComImport]
+        [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+        [Guid("bcc18b79-ba16-442f-80c4-8a59c30c463b")]
+        private interface IShellItemImageFactory
+        {
+            int GetImage(NativeMethods.SIZE size, NativeMethods.SIIGBF flags, out IntPtr phbm);
+        }
+
 
         private System.Windows.Media.ImageSource? GetFallbackIcon()
         {

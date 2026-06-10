@@ -200,12 +200,86 @@ public static class NativeMethods
     public static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
     
     [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool EnumChildWindows(IntPtr hWndParent, EnumWindowsProc lpEnumFunc, IntPtr lParam);
+
+    [DllImport("user32.dll")]
     public static extern IntPtr GetForegroundWindow();
+
+    [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
+    public static extern int SHCreateItemFromParsingName([MarshalAs(UnmanagedType.LPWStr)] string pszPath, IntPtr pbc, [In] ref Guid riid, out IntPtr ppv);
+
+    [DllImport("shell32.dll")]
+    public static extern int SHGetPropertyStoreForWindow(IntPtr hwnd, [In] ref Guid iid, out IPropertyStore propertyStore);
+
+    [DllImport("gdi32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool DeleteObject(IntPtr hObject);
+
+    [DllImport("ole32.dll")]
+    public static extern int PropVariantClear(ref PropVariant pvar);
 
     public const uint DWMWA_CLOAKED = 14;
 
     [DllImport("dwmapi.dll")]
     public static extern int DwmGetWindowAttribute(IntPtr hwnd, uint dwAttribute, out uint pvAttribute, uint cbAttribute);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct SIZE
+    {
+        public int cx;
+        public int cy;
+    }
+
+    [Flags]
+    public enum SIIGBF : uint
+    {
+        RESIZETOFIT = 0x00,
+        BIGGERSIZEOK = 0x01,
+        MEMORYONLY = 0x02,
+        ICONONLY = 0x04,
+        INGIF = 0x10,
+        PRESERVEALPHA = 0x20,
+        GDI = 0x100,
+        USEARCHITECTURE = 0x200,
+        SCALING = 0x400
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PROPERTYKEY
+    {
+        public Guid fmtid;
+        public int pid;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct PropVariant
+    {
+        public ushort vt;
+        public ushort wReserved1;
+        public ushort wReserved2;
+        public ushort wReserved3;
+        public IntPtr p;
+        public IntPtr p2;
+    }
+
+    [ComImport]
+    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    [Guid("886d8eeb-8cf2-4446-8d02-cdba1dbdcf99")]
+    public interface IPropertyStore
+    {
+        int GetCount(out uint propertyCount);
+        int GetAt(uint propertyIndex, out PROPERTYKEY propertyKey);
+        int GetValue(ref PROPERTYKEY propertyKey, out PropVariant pv);
+        int SetValue(ref PROPERTYKEY propertyKey, ref PropVariant pv);
+        int Commit();
+    }
+
+    public static readonly PROPERTYKEY PKEY_AppUserModel_ID = new PROPERTYKEY
+    {
+        fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"),
+        pid = 5
+    };
 
     [StructLayout(LayoutKind.Sequential)]
     public struct POINT
