@@ -436,7 +436,27 @@ namespace monaka_wm
         private bool HasOwnerWithoutAppWindow(IntPtr hWnd, int exStyle)
         {
             IntPtr owner = NativeMethods.GetWindow(hWnd, NativeMethods.GW_OWNER);
-            return owner != IntPtr.Zero && (exStyle & (int)NativeMethods.WS_EX_APPWINDOW) == 0;
+            if (owner == IntPtr.Zero) return false;
+
+            // Allow Edge PWA windows even if they are owned by another window
+            // and do not have WS_EX_APPWINDOW set.
+            if (IsEdgePwaWindow(hWnd)) return false;
+
+            return (exStyle & (int)NativeMethods.WS_EX_APPWINDOW) == 0;
+        }
+
+        private bool IsEdgePwaWindow(IntPtr hWnd)
+        {
+            try
+            {
+                NativeMethods.GetWindowThreadProcessId(hWnd, out uint pid);
+                using var proc = Process.GetProcessById((int)pid);
+                return proc.ProcessName.Equals("msedge", StringComparison.OrdinalIgnoreCase);
+            }
+            catch
+            {
+                return false;
+            }
         }
 
         private void AddWindow(IntPtr hWnd)
