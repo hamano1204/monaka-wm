@@ -487,6 +487,11 @@ namespace monaka_wm
 
             lock (_processNameCacheLock)
             {
+                // Prevent infinite cache growth
+                if (_processNameCache.Count >= 1000)
+                {
+                    _processNameCache.Clear();
+                }
                 _processNameCache[processId] = processName;
             }
 
@@ -515,6 +520,7 @@ namespace monaka_wm
                 Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                 {
                     if (Windows.Any(w => w.Handle == hWnd)) return;
+                    if (!NativeMethods.IsWindow(hWnd)) return; // Avoid adding a window that was destroyed during async resolution
 
                     var item = new WindowItem(hWnd, title, processName)
                     {
