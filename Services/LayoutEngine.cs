@@ -31,10 +31,12 @@ namespace monaka_wm.Services
         }
 
         public void ApplyLayout(
-            IEnumerable<WindowItem> windows, 
-            Dictionary<string, WindowItem?> activeWindowsMap, 
+            IEnumerable<WindowItem> windows,
+            Dictionary<string, WindowItem?> activeWindowsMap,
             Func<IntPtr, bool> isWindowOnCurrentDesktop,
-            Func<string, SplitDirection> getSplitDirection)
+            Func<string, SplitDirection> getSplitDirection,
+            bool isPinned,
+            int taskbarHeight)
         {
             if (_isApplyingLayout) return;
             _isApplyingLayout = true;
@@ -61,10 +63,10 @@ namespace monaka_wm.Services
                     int layoutWidth = screen.WorkingArea.Width;
                     int layoutHeight = screen.WorkingArea.Height;
 
-                    if (WindowManager.Instance.IsPinned)
+                    if (isPinned)
                     {
                         var (_, scaleY) = GetDpiScale();
-                        int barHeightPhysical = (int)Math.Round(WindowManager.TASKBAR_HEIGHT * scaleY);
+                        int barHeightPhysical = (int)Math.Round(taskbarHeight * scaleY);
                         layoutTop += barHeightPhysical;
                         layoutHeight -= barHeightPhysical;
                     }

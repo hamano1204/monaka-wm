@@ -60,6 +60,11 @@ namespace monaka_wm
 
         private readonly Dictionary<string, WindowItem?> _activeWindowsMap = new();
 
+        private static string GetActiveWindowMapKey(string monitorName, int columnIndex)
+        {
+            return $"{monitorName}_{columnIndex}";
+        }
+
         public bool IsInitialized { get; private set; }
 
         public event EventHandler? DesktopChanged
@@ -469,7 +474,7 @@ namespace monaka_wm
                 }
                 
                 // If it was the active window, update active in dictionary
-                string key = $"{item.MonitorName}_{item.ColumnIndex}";
+                string key = GetActiveWindowMapKey(item.MonitorName, item.ColumnIndex);
                 if (_activeWindowsMap.TryGetValue(key, out var active) && active == item)
                 {
                     _activeWindowsMap[key] = null;
@@ -802,7 +807,7 @@ namespace monaka_wm
         public void SetActiveWindowInColumn(WindowItem item)
         {
             int col = item.ColumnIndex;
-            string key = $"{item.MonitorName}_{col}";
+            string key = GetActiveWindowMapKey(item.MonitorName, col);
             _activeWindowsMap.TryGetValue(key, out var currentActive);
             if (currentActive != item)
             {
@@ -824,7 +829,7 @@ namespace monaka_wm
 
             item.ColumnIndex = targetColumn;
 
-            string key = $"{item.MonitorName}_{targetColumn}";
+            string key = GetActiveWindowMapKey(item.MonitorName, targetColumn);
             _activeWindowsMap[key] = item;
 
             DeferApplyLayout();
@@ -890,7 +895,7 @@ namespace monaka_wm
                 for (int i = 0; i < 3; i++)
                 {
                     var colWindows = monitorWindows.Where(w => w.ColumnIndex == i).ToList();
-                    string key = $"{screen.DeviceName}_{i}";
+                    string key = GetActiveWindowMapKey(screen.DeviceName, i);
                     if (colWindows.Count > 0)
                     {
                         _activeWindowsMap.TryGetValue(key, out var active);
@@ -918,7 +923,7 @@ namespace monaka_wm
 
                 foreach (var w in monitorWindows)
                 {
-                    string key = $"{screen.DeviceName}_{w.ColumnIndex}";
+                    string key = GetActiveWindowMapKey(screen.DeviceName, w.ColumnIndex);
                     _activeWindowsMap.TryGetValue(key, out var active);
                     w.IsActiveInColumn = w.ColumnIndex >= 0 && w.ColumnIndex < 3 && w == active;
 
@@ -944,7 +949,9 @@ namespace monaka_wm
                 Windows,
                 _activeWindowsMap,
                 IsWindowOnCurrentDesktop,
-                GetSplitDirection
+                GetSplitDirection,
+                IsPinned,
+                TASKBAR_HEIGHT
             );
         }
 
@@ -962,7 +969,7 @@ namespace monaka_wm
             if (item.MonitorName == targetMonitorName) return;
 
             // Remove active status in the current column of the old monitor
-            string oldKey = $"{item.MonitorName}_{item.ColumnIndex}";
+            string oldKey = GetActiveWindowMapKey(item.MonitorName, item.ColumnIndex);
             if (_activeWindowsMap.TryGetValue(oldKey, out var active) && active == item)
             {
                 _activeWindowsMap[oldKey] = null;

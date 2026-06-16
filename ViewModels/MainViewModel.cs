@@ -140,8 +140,6 @@ namespace monaka_wm.ViewModels
                 }
             };
 
-            // ColumnsCount is a DependencyProperty on WindowManager. UI handles layout sync via descriptor.
-
             // Listen to Window collection changes
             WindowManager.Instance.Windows.CollectionChanged += (s, e) =>
             {
