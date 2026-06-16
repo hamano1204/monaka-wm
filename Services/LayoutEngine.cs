@@ -41,11 +41,6 @@ namespace monaka_wm.Services
 
             try
             {
-                // Capture original positions before applying Tile Mode layout
-                foreach (var w in windows)
-                {
-                    CaptureWindowPlacement(w);
-                }
 
                 // Loop over all screens to apply independent layout per monitor
                 foreach (var screen in System.Windows.Forms.Screen.AllScreens)

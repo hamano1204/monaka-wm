@@ -473,29 +473,37 @@ namespace monaka_wm
             if (Windows.Any(w => w.Handle == hWnd)) return;
 
             string title = GetWindowTitle(hWnd);
-
-            NativeMethods.GetWindowThreadProcessId(hWnd, out uint processId);
-            string processName = "Unknown";
-            try
-            {
-                using var proc = Process.GetProcessById((int)processId);
-                processName = proc.ProcessName;
-            }
-            catch { }
-
             var screen = System.Windows.Forms.Screen.FromHandle(hWnd);
-            var item = new WindowItem(hWnd, title, processName)
+
+            System.Threading.Tasks.Task.Run(() =>
             {
-                ColumnIndex = 0,
-                IsOnCurrentDesktop = IsWindowOnCurrentDesktop(hWnd),
-                MonitorName = screen.DeviceName
-            };
+                NativeMethods.GetWindowThreadProcessId(hWnd, out uint processId);
+                string processName = "Unknown";
+                try
+                {
+                    using var proc = Process.GetProcessById((int)processId);
+                    processName = proc.ProcessName;
+                }
+                catch { }
 
-            // Capture original position IMMEDIATELY, before ApplyLayout moves it off-screen.
-            // At this point the window is still at its real position.
-            _layoutEngine.CaptureWindowPlacement(item);
+                Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                {
+                    if (Windows.Any(w => w.Handle == hWnd)) return;
 
-            Windows.Add(item);
+                    var item = new WindowItem(hWnd, title, processName)
+                    {
+                        ColumnIndex = 0,
+                        IsOnCurrentDesktop = IsWindowOnCurrentDesktop(hWnd),
+                        MonitorName = screen.DeviceName
+                    };
+
+                    // Capture original position IMMEDIATELY, before ApplyLayout moves it off-screen.
+                    // At this point the window is still at its real position.
+                    _layoutEngine.CaptureWindowPlacement(item);
+
+                    Windows.Add(item);
+                }));
+            });
         }
 
         private void RemoveWindow(IntPtr hWnd)
