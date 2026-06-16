@@ -51,6 +51,8 @@ namespace monaka_wm
         private readonly LayoutEngine _layoutEngine;
 
         private readonly HashSet<IntPtr> _taskbarHwnds = new();
+        private readonly Dictionary<uint, string> _processNameCache = new();
+        private readonly object _processNameCacheLock = new();
         public const int TASKBAR_HEIGHT = 45; // Taskbar height in WPF units
 
         public ObservableCollection<WindowItem> Windows { get; } = new();
@@ -377,21 +379,32 @@ namespace monaka_wm
             if (hWnd == IntPtr.Zero || _taskbarHwnds.Contains(hWnd)) return false;
             if (!NativeMethods.IsWindow(hWnd)) return false;
 
-            string titleStr = GetWindowTitle(hWnd);
-            string cls = GetWindowClassName(hWnd);
+            // Fast filter 1: It must be a top-level window (root window matches itself)
+            if (NativeMethods.GetAncestor(hWnd, NativeMethods.GA_ROOT) != hWnd) return false;
 
-            if (!NativeMethods.IsWindowVisible(hWnd)) return false;
-
+            // Fast filter 2: Style check
             int style = (int)NativeMethods.GetWindowLongPtr(hWnd, NativeMethods.GWL_STYLE);
             int exStyle = (int)NativeMethods.GetWindowLongPtr(hWnd, NativeMethods.GWL_EXSTYLE);
-
             if (HasInvalidWindowStyles(style, exStyle)) return false;
+
+            // Fast filter 3: Visibility check
+            if (!NativeMethods.IsWindowVisible(hWnd)) return false;
+
+            // Fast filter 4: Cloaked check
+            if (IsWindowCloaked(hWnd)) return false;
+
+            // Cheap/moderate filter 5: Window title check
+            string titleStr = GetWindowTitle(hWnd);
+            if (string.IsNullOrWhiteSpace(titleStr)) return false;
+            if (IsBackgroundExperienceWindow(titleStr)) return false;
+
+            // Cheap/moderate filter 6: Class name check
+            string cls = GetWindowClassName(hWnd);
             if (IsShellOrSystemWindow(cls)) return false;
             if (IsTooltipOrBalloonNotification(cls)) return false;
             if (IsContextMenuOrJumpList(cls, titleStr)) return false;
-            if (string.IsNullOrWhiteSpace(titleStr)) return false;
-            if (IsBackgroundExperienceWindow(titleStr)) return false;
-            if (IsWindowCloaked(hWnd)) return false;
+
+            // Expensive filter 7: Owner / Edge PWA check (now optimized with process name cache)
             if (HasOwnerWithoutAppWindow(hWnd, exStyle)) return false;
 
             return true;
@@ -454,18 +467,37 @@ namespace monaka_wm
             return (exStyle & (int)NativeMethods.WS_EX_APPWINDOW) == 0;
         }
 
-        private bool IsEdgePwaWindow(IntPtr hWnd)
+        private string GetProcessName(uint processId)
         {
+            lock (_processNameCacheLock)
+            {
+                if (_processNameCache.TryGetValue(processId, out var name))
+                {
+                    return name;
+                }
+            }
+
+            string processName = "Unknown";
             try
             {
-                NativeMethods.GetWindowThreadProcessId(hWnd, out uint pid);
-                using var proc = Process.GetProcessById((int)pid);
-                return proc.ProcessName.Equals("msedge", StringComparison.OrdinalIgnoreCase);
+                using var proc = Process.GetProcessById((int)processId);
+                processName = proc.ProcessName;
             }
-            catch
+            catch { }
+
+            lock (_processNameCacheLock)
             {
-                return false;
+                _processNameCache[processId] = processName;
             }
+
+            return processName;
+        }
+
+        private bool IsEdgePwaWindow(IntPtr hWnd)
+        {
+            NativeMethods.GetWindowThreadProcessId(hWnd, out uint pid);
+            string processName = GetProcessName(pid);
+            return processName.Equals("msedge", StringComparison.OrdinalIgnoreCase);
         }
 
         private void AddWindow(IntPtr hWnd)
@@ -478,13 +510,7 @@ namespace monaka_wm
             System.Threading.Tasks.Task.Run(() =>
             {
                 NativeMethods.GetWindowThreadProcessId(hWnd, out uint processId);
-                string processName = "Unknown";
-                try
-                {
-                    using var proc = Process.GetProcessById((int)processId);
-                    processName = proc.ProcessName;
-                }
-                catch { }
+                string processName = GetProcessName(processId);
 
                 Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                 {
@@ -914,12 +940,19 @@ namespace monaka_wm
         {
             var activeWindows = Windows.Where(w => IsWindowOnCurrentDesktop(w.Handle)).ToList();
 
-            // Collapse gaps between columns per monitor
             foreach (var screen in System.Windows.Forms.Screen.AllScreens)
             {
                 var monitorWindows = activeWindows.Where(w => w.MonitorName == screen.DeviceName).ToList();
-                if (monitorWindows.Count == 0) continue;
+                if (monitorWindows.Count == 0)
+                {
+                    for (int i = 0; i < 3; i++)
+                    {
+                        _activeWindowsMap[$"{screen.DeviceName}_{i}"] = null;
+                    }
+                    continue;
+                }
 
+                // 1. Collapse gaps between columns per monitor
                 var uniqueSortedColumns = monitorWindows
                     .Select(w => w.ColumnIndex)
                     .Distinct()
@@ -930,21 +963,8 @@ namespace monaka_wm
                 {
                     w.ColumnIndex = uniqueSortedColumns.IndexOf(w.ColumnIndex);
                 }
-            }
 
-            // ColumnsCount is updated dynamically per MainWindow in MainWindow.xaml.cs,
-            // but we can still keep a global ColumnsCount fallback for other bindings if needed.
-            int maxUsedColumn = 0;
-            if (activeWindows.Count > 0)
-            {
-                maxUsedColumn = activeWindows.Max(w => w.ColumnIndex);
-            }
-            ColumnsCount = Math.Max(1, maxUsedColumn + 1);
-
-            // Update active windows for all columns on each monitor
-            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
-            {
-                var monitorWindows = activeWindows.Where(w => w.MonitorName == screen.DeviceName).ToList();
+                // 2. Update active windows for all columns on each monitor
                 for (int i = 0; i < 3; i++)
                 {
                     var colWindows = monitorWindows.Where(w => w.ColumnIndex == i).ToList();
@@ -962,17 +982,11 @@ namespace monaka_wm
                         _activeWindowsMap[key] = null;
                     }
                 }
-            }
 
-            // Update IsActiveInColumn, CanMoveLeft, and CanMoveRight properties per monitor
-            foreach (var screen in System.Windows.Forms.Screen.AllScreens)
-            {
-                var monitorWindows = activeWindows.Where(w => w.MonitorName == screen.DeviceName).ToList();
+                // 3. Update IsActiveInColumn, CanMoveLeft, and CanMoveRight properties per monitor
                 int col0Count = monitorWindows.Count(w => w.ColumnIndex == 0);
                 int col1Count = monitorWindows.Count(w => w.ColumnIndex == 1);
-                int monitorColumnsCount = monitorWindows.Count > 0
-                    ? Math.Max(1, monitorWindows.Max(w => w.ColumnIndex) + 1)
-                    : 1;
+                int monitorColumnsCount = Math.Max(1, monitorWindows.Max(w => w.ColumnIndex) + 1);
 
                 foreach (var w in monitorWindows)
                 {
@@ -988,6 +1002,15 @@ namespace monaka_wm
                     w.CanMoveLeft = !(monitorColumnsCount == 3 && w.ColumnIndex == 1 && col1Count <= 1);
                 }
             }
+
+            // ColumnsCount is updated dynamically per MainWindow in MainWindow.xaml.cs,
+            // but we can still keep a global ColumnsCount fallback for other bindings if needed.
+            int maxUsedColumn = 0;
+            if (activeWindows.Count > 0)
+            {
+                maxUsedColumn = activeWindows.Max(w => w.ColumnIndex);
+            }
+            ColumnsCount = Math.Max(1, maxUsedColumn + 1);
         }
 
         public void ApplyLayout()
