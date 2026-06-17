@@ -403,6 +403,7 @@ namespace monaka_wm
             if (IsShellOrSystemWindow(cls)) return false;
             if (IsTooltipOrBalloonNotification(cls)) return false;
             if (IsContextMenuOrJumpList(cls, titleStr)) return false;
+            if (IsPopupOrFlyout(cls, titleStr)) return false;
 
             // Expensive filter 7: Owner / Edge PWA check (now optimized with process name cache)
             if (HasOwnerWithoutAppWindow(hWnd, exStyle)) return false;
@@ -438,6 +439,16 @@ namespace monaka_wm
                    className.Equals("Windows.UI.Core.CoreWindow", StringComparison.OrdinalIgnoreCase) ||
                    title.Contains("ジャンプ リスト", StringComparison.OrdinalIgnoreCase) ||
                    title.Contains("Jump List", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsPopupOrFlyout(string className, string title)
+        {
+            // WinUI/XAML Islands の一時的なポップアップウィンドウを除外する。
+            // 例: Windows 11 スタートメニューの電源ボタンメニュー (PopupHost) など。
+            if (className.Equals("PopupHost", StringComparison.OrdinalIgnoreCase)) return true;
+            if (className.Contains("Xaml_WindowedPopupFlowAligner", StringComparison.OrdinalIgnoreCase)) return true;
+            if (title.Equals("PopupHost", StringComparison.OrdinalIgnoreCase)) return true;
+            return false;
         }
 
         private bool IsBackgroundExperienceWindow(string title)
