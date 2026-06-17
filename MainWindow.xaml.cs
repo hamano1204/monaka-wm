@@ -24,6 +24,7 @@ namespace monaka_wm
         private System.Windows.Threading.DispatcherTimer? _hoverTimer;
         private System.Windows.Threading.DispatcherTimer? _leaveTimer;
         private Services.HotkeyService? _hotkeyService;
+        private HwndSource? _hwndSource;
 
         public MainWindow() : this(System.Windows.Forms.Screen.PrimaryScreen!)
         {
@@ -63,8 +64,8 @@ namespace monaka_wm
             NativeMethods.SetWindowLongPtr(hwnd, NativeMethods.GWL_EXSTYLE, new IntPtr(exStyle | (int)NativeMethods.WS_EX_NOACTIVATE | (int)NativeMethods.WS_EX_TOOLWINDOW));
 
             // Register HwndSource hook to listen to resolution or taskbar setting changes
-            var hwndSource = HwndSource.FromHwnd(hwnd);
-            hwndSource?.AddHook(WndProc);
+            _hwndSource = HwndSource.FromHwnd(hwnd);
+            _hwndSource?.AddHook(WndProc);
 
             // Initialize ViewModel and set DataContext, filtering for this screen
             _viewModel = new MainViewModel(_targetScreen);
@@ -181,9 +182,15 @@ namespace monaka_wm
             }
 
             // Unsubscribe WndProc hook
-            var hwnd = new WindowInteropHelper(this).Handle;
-            var hwndSource = HwndSource.FromHwnd(hwnd);
-            hwndSource?.RemoveHook(WndProc);
+            if (_hwndSource != null && !_hwndSource.IsDisposed)
+            {
+                try
+                {
+                    _hwndSource.RemoveHook(WndProc);
+                }
+                catch { }
+                _hwndSource = null;
+            }
 
             // Dispose NotifyIcon
             if (_notifyIcon != null)
